@@ -20,11 +20,7 @@ You should also ensure that you can compile and run CUDA code on this machine un
 
 ### Compiling
 We assume you have cloned MiLib in the current directory ./
-The makefiles are:
-MiLib/common/lib/Makefile
-and
-
-MiLib/histogram/gpu/Makefile
+The makefiles are MiLib/common/lib/Makefile and MiLib/histogram/gpu/Makefile
 
 These are currently set to output debug executables.  Should you want to create optimized production version, you will find the variable dbg in each of these files set to 1.  Next to that is the same variable set to 0 and commented out.  Comment out dbg=1 and enable dbg=0 for the production version.
 
@@ -32,16 +28,22 @@ Compilation consists of two steps:
 
 1. compile the common files first
   This will create the library histo.a  You would do that by:
+  
   $ cd MiLib/common/lib         # contains the common files.  you can compile as a common user (don't need to use sudo)
+  
   $ make                        # Makefile here creates histo.a
 
 2. Compile the histogram files
+
   $ cd ../../histogram/gpu/     # gets you to the directory containing the histogram files
-  # make                        # Makefile creates the executable ./histogram
+
+  $ make                        # Makefile creates the executable ./histogram
 
 ### Running
 you should be in the directory MiLib/histogram/gpu/
+
 the command is:
+
 $ ./histogram [-s <stop_words_file>] < text_file
 
 where:
@@ -55,8 +57,7 @@ We do not output anything at this point as the assumption is that we will hold t
 We plan to extend the histogram stored by:
 * Enabling reading multiple text files
 * applying stop words to these
-* Merging them with the existing text histogram - including storing file-names
-** Alternatively we can also store the memory location of each word with file-name allowing a fine grained indexing for each word but this will be pretty expensive.
+* Merging them with the existing text histogram - including storing file-names.  Alternatively we can also store the memory location of each word with file-name allowing a fine grained indexing for each word but this will be pretty expensive.
 * Allowing querying for a specific word and returning the number of words and file-name.
 
 # MiSQL
