@@ -12,6 +12,7 @@ We also do Math analysis: Mean, Average, Std Dev however this has not been teste
 The function has been commented out but can be enabled.  At this point it does the Math calculation sequentially and will impact performance.
 
 ### Setup
+
 This build has been tested with CUDA 7.5 on a local machine with an nVidia Quadro 2000 card.  It will require some modifications to the Makefile to compile under CUDA 8.0.
 
 You should either have a CUDA capable nVidia card on your machine or access to a CUDA instance on the cloud (AWS, Google,Azure).
@@ -22,10 +23,13 @@ We assume you have cloned MiLib in the current directory ./
 The makefiles are:
 MiLib/common/lib/Makefile
 and
+
 MiLib/histogram/gpu/Makefile
+
 These are currently set to output debug executables.  Should you want to create optimized production version, you will find the variable dbg in each of these files set to 1.  Next to that is the same variable set to 0 and commented out.  Comment out dbg=1 and enable dbg=0 for the production version.
 
-Compilation is two steps:
+Compilation consists of two steps:
+
 1. compile the common files first
   This will create the library histo.a  You would do that by:
   $ cd MiLib/common/lib         # contains the common files.  you can compile as a common user (don't need to use sudo)
@@ -38,14 +42,14 @@ Compilation is two steps:
 ### Running
 you should be in the directory MiLib/histogram/gpu/
 the command is:
-./histogram [-s <stop_words_file>] < text_file
+$ ./histogram [-s <stop_words_file>] < text_file
 
 where:
 stop_words_file is a list of stop-words in text format (we assume there are no duplicates).
 text_file is a text file containing words.  We have tested this to a max of 2.5 MB.
 
 This results in a sorted histogram on the GPU.
-We do not output anything at this point as the assumption is that we will hold t
+We do not output anything at this point as the assumption is that we will hold the data on the GPU and send queries there.
 
 ## Inverted Index
 We plan to extend the histogram stored by:
