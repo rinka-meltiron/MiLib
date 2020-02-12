@@ -1,0 +1,33 @@
+Please ensure the following before running MISql
+Please load a MySQL DB before running MySQL.  You should load a DB with a very large table, the maximum table size should be 70% of the memory available on the GPU.
+
+Starting MISQL
+$ ./MISql -h           prints this Help file.
+$ ./MISql              starts the application
+Server address:        Enter the address of the server (localhost or IP address)
+Login id:              Login Id for MySQL
+Password:              Enter password
+Database:              Enter Database.  To change DB, you should re-run MISql
+Table:                 Enter Table.  To change table, you should re-run MISql
+Rows of DB to read:    Enter number of rows to read & process.  0 for all records.
+         Once data is entered correctly, you will get the prompt:
+MI_Data >             You can enter the commands listed below in any sequence
+         Commands supported (case-insensitive) are:
+HELP              This file
+SET ALL           All the configuration parameters are printed
+SET GPU ON/OFF    SET GPU ON executes Select command on the GPU.  OFF executes on the CPU.
+SET TIME ON/OFF   SET TIME ON will measure the time taken to execute (for both CPU & GPU)
+SET CACHE ON/OFF  SET CACHE ON will allow MySQL on the CPU to cache the last SELECT call
+SELECT * FROM <table name> WHERE <field Name>="String" - Any field in the table.
+EXIT
+
+A suggested sequence of commands would be:
+SET ALL                examine the set parameters
+SET GPU ON             Send query to GPU.
+SELECT *...            Run the select statement on the CPU/GPU. Any valid field & string.
+EXIT                   Exit from MiSQL
+
+Limitations
+* We only support MySQL databases.
+* Minimal error handling is done.  Please don't experiment.
+* The Maximum table size should be 70-80% of the memory available on the GPU and the CPU - whichever is smaller.  You can truncate the table by setting the Rows of DB to read appropriately.

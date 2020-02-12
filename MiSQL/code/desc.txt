@@ -1,0 +1,68 @@
+COMMANDS
+
+LOGIN <user-id> <password>
+USE <db>
+USE <table>
+
+EXIT
+
+HELP
+
+SET
+SET CACHE <on/off>      // default is off
+SET GPU <on/off>        // default is off
+SET TIME <on/off>       // default is off
+
+SELECT * FROM <table> WHERE <field> = <string>
+
+Start - this is standard scanf code.
+    Do the following sequence - hard code this
+    LOGIN <user-name> <password>;
+    USE <db>;           // open db
+    USE <table>;        // open and load table
+
+    transition to Ready state in FSM
+
+FSM
+
+Ready:
+    Can be done in any sequence.  All return to Ready state after executing
+    SET;                // display all that is set
+    SET CACHE <on/off>; // query caching
+    SET GPU <on/off>;   // switch GPU processing on / off.  If off, the processing is on CPU
+    SET TIME <on/off>;  // time to execute query is displayed
+
+    SELECT * FROM <table> WHERE <field> = <string>; // execute select call
+
+    HELP
+    EXIT                // close everything, transition to exit state
+
+Exit
+    exit (0);
+
+Task: Change the various SET parameters & HELP
+At start is the command prompt:
+MI_Data>
+You can set various parameters here such as
+cache, gpu, time, help
+and exit.
+
+Work:
+add the parser to the main function.
+update the various set parameters here.
+help prints help.
+exit frees everything and exits
+-------------------------------------
+Task: enable the select
+user types the command select *... in the command line.
+parser parses it and creates the query based on the set params.
+give it to the cpu code & from there to db or
+give it to the gpu code & process it & return result.
+
+Work:
+
+
+-------------------------------------
+Task: enable the shutdown
+
+Work:
