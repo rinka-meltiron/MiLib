@@ -34,27 +34,28 @@ Compilation consists of two steps:
 1. compile the common files first
   This will create the library histo.a  The commands are:
 
-```  $ cd MiLib/common/lib         # contains the common files.  you can compile as a common user (don't need to use sudo)
+```
+  $ cd MiLib/common/lib         # contains the common files.  you can compile as a common user (don't need to use sudo)
   $ make                        # Makefile here creates histo.a
 ```
 
 2. Compile the histogram files
-```  $ cd ../../histogram/gpu/     # the histogram files
+```
+  $ cd ../../histogram/gpu/     # the histogram files
   $ make                        # creates ./histogram
 ```
 
 ### Running
-you should be in the directory MiLib/histogram/gpu/
-
 the command is:
 ```
+  $ cd ./MiLib/histogram/gpu/
   $ ./histogram [-s <stop_words_file>] < text_file
 ```
-where:
-stop_words_file is a list of stop-words in text format (we assume there are no duplicates).
-text_file is a text file.  We have tested this to a max of 2.5 MB.
+where:<br>
+stop_words_file is a list of stop-words in text format (we assume there are no duplicates).<br>
+text_file is a text file.  We have tested this to a max of 2.5 MB.<br>
 
-This results in a sorted histogram on the GPU.
+This results in a sorted histogram on the GPU.<br>
 We do not output anything at this point as the assumption is that we will hold the data on the GPU and send queries there.
 
 ## Inverted Index
