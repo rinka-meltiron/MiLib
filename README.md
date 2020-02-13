@@ -54,6 +54,9 @@ the command is:
 where:<br>
 stop_words_file is a list of stop-words in text format (we assume there are no duplicates).<br>
 text_file is a text file.  We have tested this to a max of 2.5 MB.<br>
+```
+  $ ./histogram -s 'data/stop-word-merged - original.txt' < data/all/1para.txt           # as an example
+```
 
 This results in a sorted histogram on the GPU.<br>
 We do not output anything at this point as the assumption is that we will hold the data on the GPU and send queries there.
