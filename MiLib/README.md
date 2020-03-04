@@ -87,6 +87,3 @@ will be implemented as a subsequent step.  We plan to extend the histogram store
 * applying stop words to these
 * Merging them with the existing text histogram - including storing file-names.  Alternatively we can also store the memory location of each word with file-name allowing a fine grained indexing for each word but this will be pretty expensive.
 * Allowing querying for a specific word and returning the number of words and file-name.
-
-# MiSQL
-Was a proto DB that handled one table and ran a simple pattern matching query on it.  I don't plan to update this unless there's a clear need.
