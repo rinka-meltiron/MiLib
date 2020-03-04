@@ -1,0 +1,4 @@
+add-auto-load-safe-path /home/rinka/Documents/dev/code/histogram/gpu/
+set args -s data/tst.txt < data/tst.txt
+b main
+

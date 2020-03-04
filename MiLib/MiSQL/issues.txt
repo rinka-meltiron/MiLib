@@ -1,0 +1,45 @@
+Logging: timing, CPU loading, memory availability and performance. Log failures, Debug messages
+
+Interface: Multiple JDBCs will make requests in parallel. Track and respond to the parallel requests.
+
+Write: if many writes are coming, then batch all writes into one. Write optimization.
+
+Write: Hold all reads, complete write and return success.
+Request for queries cached by JDBC, re-run the queries and return results to update JDBCs cache.
+
+Heartbeat: set watchdog timers on the GPU DB, on itself and track the jitter. Return server choked or DB choked if high jitter. Need to decide on threshold.
+Get heartbeat timer from JDBC. Any request must complete within this timer. If the timer fails, then throw away the read or roll-back the write.
+
+Interface: Similar implementation for ODBC, ADO .NET, DB libraries, Groovy/Grails ORM (override its ORM classes with ours), Ruby on Rails ORM/jRuby as above (to be validated with customers first). ORM for ASP.NET / IIS servers
+
+Configuration: Location of MiSQL Engine and of original JDBC
+Configuration: Connect with the defined MiSQL Engine
+
+DBs: Support for MS SQL, DB2, MariaDB, MongoDB and other mainstream DBs. Node.js, Redis, Amazon S3, Amazon RDS.
+
+Recovery: Journal the query till completed. If Engine fails, then send the SQL query to the DB. If the Engine returns success after heartbeat timer, then throw away read query or roll-back write query.
+
+Recovery: Journal the query till completed. If Engine fails, then send the SQL query to the DB. If the Engine returns success after heartbeat timer, then throw away read query or roll-back write query.
+
+Write enable: All writes are sent in parallel to the MiSQL DB engine and the underlying DB. If the write to the underlying DB fails, then the write to the GPU DB is rolled back and the application is given an error.
+
+Compiler: LLVM Compile the query into IR and apply various optimizing techniques to optimize the IR. Send it to MiSQL Engine with original query.
+
+Compiler: LLVM Parse and validate the SQL query. If error in parsing, pass it to the MiSQL Engine with error with original query.
+
+Cache: Stored procedure results should be cached.
+
+Cache: Write cache to secondary disk if flash is available. This is configurable.
+
+Cache: Track queries from the application in the statistics module. Cache if the query has come more than once.
+
+Cache: Cache the query results and results from executing Stored Procedures. Refresh Cache if DB has been updated. This is basic cache implementation.
+
+Write enable: Put traps on the DB and if the DB is updated, then read the modifications and pass it to the MiSQL Engine. Configuration allows read to happen on trap or at regular intervals
+
+JDBC: Emulate a JDBC Type 3 driver to the JDBC manager.
+
+JDBC: Handle all API calls from the JDBC Manager and if it is a SQL query then either respond from Cache or parse and optimize it and pass the (LLVM) IR to the MiSQL Engine. All other API calls are directly passed to the MiSQL Engine.
+
+Install: Replace the current JDBC with the MiSQL JDBC and integrate with the JDBC manager. Connect with the MiSQL Engine.
+Uninstall: restore system to its original configuration

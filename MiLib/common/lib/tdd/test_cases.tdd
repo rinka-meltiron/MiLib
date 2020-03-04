@@ -1,0 +1,26 @@
+histogram
+histogram -s
+histogram -s <invalid_file>
+histogram -s <valid_file>
+histogram invalid_file
+histogram file1
+histogram file1 file2
+histogram -s <valid_file> file1 file2
+histogram -s <valid_file> file1 file2 invalid_file
+histogram --stop_word <valid_file> file1 file2 invalid_file
+histogram --stop_words <valid_file> file1 file2 invalid_file
+histogram file1 file2 -D
+histogram file1 file2 --deamonize
+histogram --deamonize file1 file2
+histogram -D file1 file2
+histogram --deamonize --create_new_index
+histogram file1 file2 --create_new_index
+histogram file1 file2 -c
+histogram -c file1 file2 invalid_file
+histogram file1 file2 --deamonize --create_new_index
+
+validate help (usage function)
+integrate into branch
+validate for README.md
+check code in
+merge branch
