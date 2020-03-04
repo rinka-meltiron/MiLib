@@ -1,0 +1,74 @@
+/******************************************************
+ * Copyright: Rinka Singh/Melt Iron
+ * generic.tdd
+ ******************************************************/
+
+Code will be test driven development enabled.
+We will have TCs for most functions.
+
+for histogram.cpp
+main ()
+	handle small data size - 4-5 words per line, 2 & 3 lines
+	1.1 1 line (5 wds, 2 same), repeat with stop_word
+	1.2 1 line (10 wds, all same), repeat with stop_word
+	1.3 1 line (10 wds, none same), repeat with stop_word
+
+	1.4 2 line (5 wds, 2 same + 2 wds 1 same), repeat with stop_word
+	1.5 2 line (10 wds, all same + 10 wds, all same), repeat with stop_word
+	1.6 2 line (10 wds, none same + 10 wds, none same), repeat with stop_word
+
+	1.10 3 line (1.1 + 1.4), repeat with stop_word
+	1.11 3 line (1.2 + 1.5), repeat with stop_word
+	1.12 3 line (1.3 + 1.6), repeat with stop_word
+
+	handle very large data chunk - 1MB
+	handle multiple very large data chunk - 1 GB
+
+	Measurement for different data sizes:
+	1 KB
+	10 KB
+	100 KB
+	500 KB
+	1 MB
+	10 MB
+	100 MB
+	500 MB
+	1 GB
+
+print_math_data
+
+=========================================================
+for gpu_histogram.cu
+create_buffer
+
+arguments_processing
+
+usage
+
+create_read_buf
+
+cuda_create_gpu_buf
+
+process_next_set_of_tokens
+
+cuda_stream_to_token_start
+
+cuda_convert_to_words
+
+cuda_read_buffer_into_gpu
+
+create_stop_word_memory_alloc
+
+update_stop_word_into_histo
+
+create_token_chunk
+
+delete_token_chunk
+phy_delete_token_chunk
+	delete chunk at head
+	delete chunk in middle
+	delete chunk at tail
+
+reset_token_chunk
+
+cuda_free_everything
