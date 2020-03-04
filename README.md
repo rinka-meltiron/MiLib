@@ -1,4 +1,4 @@
-### Setup
+# Setup
 The environment setup is as follows:
 * This build has been tested with CUDA 7.5 on a local machine with an nVidia Quadro 2000 card.  Some modifications are needed to the Makefile to compile it under CUDA 8.0.
 * This has been tested on Ubuntu 14.4 and 16.6.
