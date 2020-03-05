@@ -21,7 +21,7 @@ The environment setup is as described on the [README.md page on MiLib](https://g
 
 ### Compiling
 * clone MiLib as a branch in your current directory ./
-* The relevant makefiles are ```MiLib/common/lib/Makefile``` and ```MiLib/histogram/gpu/Makefile```
+* The relevant makefiles are ```./common/lib/Makefile``` and ```./histogram/gpu/Makefile```
 * These are currently set in debug mode.  For production version, modify the variable *dbg=1* in each of the Makefiles to *dbg=0*.
 
 Compilation consists of two steps:
