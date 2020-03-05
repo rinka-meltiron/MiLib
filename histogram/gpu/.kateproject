@@ -1,9 +1,0 @@
-{
-	"name":		"histogram"
-	"files":	[ { "directory": ".",
-		"filters": [
-			"*.cu", "*.c", "*.cpp",
-			"*.h" ],
-		"recursive" :	1 }
-	]
-}
