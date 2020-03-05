@@ -58,12 +58,11 @@ the various alternative parameters are.  These have yet to be implemented
   $ ./histogram -s stop_file.txt -o output.txt file.txt		# write output to output.txt
   $ ./histogram -s stop_file.txt -o output.txt -D file.txt	# histogram as daemon on CPU & GPU.
   $ ./histogram -s stop_file.txt -o output.txt -D -c file.txt	# histogram as daemon on both CPU & GPU.
-								# Also, wipe out existing histogram & create anew
+								# & wipe out existing histogram & recreate
   $ ./histogram -s stop_file.txt -o output.txt -D -c f1.txt f2.txt f3.txt ...
-								# pass multiple input files f1.txt, f2.txt, f3.txt
-								# hold histogram as daemon on CPU & GPU.
-								# in addition, wipe out existing histogram and
-								# create a new one with 'f1.txt'
+								# pass input files: f1.txt, f2.txt, f3.txt
+								# hold histogram as daemon on CPU & GPU.,
+								# wipe out existing histogram & recreate
 ```
 where:<br>
 stop_words_file is a list of stop-words in text format (we assume there are no duplicates).<br>
