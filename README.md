@@ -13,17 +13,5 @@ These are the core Text Analytics Libraries from Melt Iron.  The main directorie
 * histogram: a text based histogram
 * tools: various scripts and other tools
 
-## Histogram directory
-This is a histogram of a text file.  Essentially:
-* Apply stop words (optional)
-* Sort words of an inputted text file
-* Merges words and tracks the frequency of the words
-* Stores it on the GPU.
-
-We also do Math analysis: Mean, Average, Std Dev however this has not been tested completely since this is not critical.
-The function has been commented out but can be enabled.  At this point it does the Math calculation sequentially and will impact performance.
-
-This will be extended to provide inverted index functionality
-
 # MiSQL
 Is a proto DB that handled one table and ran a simple pattern matching query on it.  It has not been updated with the latest include files.
