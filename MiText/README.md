@@ -17,7 +17,7 @@ We also do Math analysis: Mean, Average, Std Dev however this has not been teste
 The function has been commented out but can be enabled.  At this point it does the Math calculation sequentially and will impact performance.
 
 ### Setup
-The environment setup is as described on the [README.md page on MiLib (https://github.com/rinka-meltiron/MiLib)]
+The environment setup is as described on the [README.md page on MiLib](https://github.com/rinka-meltiron/MiLib)
 
 ### Compiling
 * clone MiLib as a branch in your current directory ./
