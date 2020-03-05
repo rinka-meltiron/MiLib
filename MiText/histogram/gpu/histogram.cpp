@@ -14,6 +14,21 @@ extern void histo_time_taken (struct timeval *tvDiff, struct timeval *t2, struct
 extern void memory_compaction (all_bufs *ab, token_tracking *tt_lst, unsigned int c_size);
 extern void print_token_tracking (gpu_calc *gb, token_tracking *hst);		// DEBUG
 
+#define INPUT_FILES					256
+
+typedef struct args_for_processing {
+	bool apply_stop_words;			// stop words
+	bool deamonize;					// hold and expect more files or query
+	// index held on both cpu & gpu
+	bool create_new_index;			// clean existing index & create new one
+	// only if daemonized
+	bool output;					// write to stdout or to file
+
+	char *stop_words_file;			// filename of stop_words
+	char *in_files [INPUT_FILES];	// list of input file names
+	FILE *output_file;				// the actual output file
+} args_for_processing;
+
 #define no_argument					0
 #define required_argument			1
 #define optional_argument			2
@@ -176,10 +191,6 @@ static void arguments_processing (args_for_processing *afp, all_bufs *ab, int ar
 
 	ret = store_input_files (afp, argv, optind, argc);
 	// arg validation
-	if (NULL == afp -> stop_words_file) {
-		Dbg ("Valid stop word text file not given");
-		ret = false;
-	}
 	if (!afp -> deamonize && afp -> create_new_index) {
 		Dbg ("'create_new_index' goes with 'deamonize' option, not alone");
 		ret = false;

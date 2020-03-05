@@ -5,7 +5,7 @@
 
 // functions exported
 unsigned int process_next_set_of_tokens (all_bufs *ab, ssize_t data_read);
-ssize_t cuda_read_buffer_into_gpu (all_bufs *ab);
+ssize_t cuda_read_buffer_into_gpu (all_bufs *ab, char *f_name);
 unsigned int cuda_stream_to_wd_to_token (ssize_t read, all_bufs *ab);
 token_tracking *delete_token_tracking (token_tracking *curr);
 void cuda_free_everything (all_bufs *ab);
@@ -155,7 +155,7 @@ static void store_last_word (struct past_c_buf *target, unsigned char *src, unsi
 }
 
 // code borrowed from: https://stackoverflow.com/questions/2371292/buffered-reading-from-stdin-using-fread-in-c
-ssize_t cuda_read_buffer_into_gpu (all_bufs *ab)
+ssize_t cuda_read_buffer_into_gpu (all_bufs *ab, char *f_name)
 {
 	ssize_t				buf_space = ab -> st_info.bufsiz - 1;
 	unsigned char		*buf_start = ab -> st_info.h_read_buf;
@@ -174,10 +174,14 @@ ssize_t cuda_read_buffer_into_gpu (all_bufs *ab)
 	}
 
 	ssize_t				chars_read;
-	chars_read = fread (buf_start, sizeof (unsigned char), buf_space, stdin);
+	FILE *				fl = NULL;
+	fl = (FILE *) fopen (f_name, "r");
+	check_mem (fl);
+
+	chars_read = fread (buf_start, sizeof (unsigned char), buf_space, fl);
 	/***
 	 c hars_read = read (STDIN_FILENO, (char *) ab -> st_info.*h_read_buf, buf_space * sizeof (unsigned char));
-	 // chars_read = (ssize_t) getline ((char **) &(ab -> st_info.h_read_buf), (size_t *) &buf_space, stdin);
+	 // chars_read = (ssize_t) getline ((char **) &(ab -> st_info.h_read_buf), (size_t *) &buf_space, fl);
 	 ***/
 	if (0 > chars_read) exit (chars_read);
 	if (past.len) {
@@ -225,6 +229,10 @@ ssize_t cuda_read_buffer_into_gpu (all_bufs *ab)
 	}
 
 	return chars_read;
+
+error:
+	Dbg ("Invalid file");
+	exit (1);
 }
 
 static void add_gpuMem_to_token_tracking (gpu_config *gc, token_tracking *tt, const unsigned int tok_size);

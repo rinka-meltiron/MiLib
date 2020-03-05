@@ -3,9 +3,9 @@
 # Origin: Copyright 1993-2015, NVIDIA Corporation
 ########################################################
 
-INC_DIR		= ../../common/include
+INC_DIR		= ../../../common/include
 OBJ_DIR		= ./obj_dir
-LIB_DIR		= ../../common/lib/obj_dir
+LIB_DIR		= ../../../common/lib/obj_dir/
 CUDA_PATH       ?= /usr/local/cuda
 # dbg = 0
 dbg = 1
