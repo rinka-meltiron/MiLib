@@ -1,3 +1,0 @@
-#!/bin/bash
-
-ctags *cu ../include/* ../../histogram/gpu/*cpp ../../histogram/gpu/*cu
