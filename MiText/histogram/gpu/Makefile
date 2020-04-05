@@ -3,7 +3,7 @@
 # Origin: Copyright 1993-2015, NVIDIA Corporation
 ########################################################
 
-INC_DIR		= ../../common/include
+INC_DIR		= ../../../common/include
 OBJ_DIR		= ./obj_dir
 LIB_DIR		= ../../common/lib/obj_dir
 CUDA_PATH       ?= /usr/local/cuda
@@ -35,8 +35,7 @@ GPUOBJS		=
 
 LIBOBJS		= $(LIB_DIR)/histo.a
 CLEAN_REBUILDABLES = $(OBJS) $(LINK_TARGET)  $(GPUOBJS)
-REBUILDABLES	= $(OBJS)  $(GPUOBJS) $(LINK_TARGET)
-HFILES		= $(INC_DIR)/milib.h
+HFILES		= $(INC_DIR)/milib.h $(INC_DIR)/milib_classes.hpp
 CUDA_HFILES	= $(INC_DIR)/cuda_milib.h
 MAKEFILE	= Makefile
 
@@ -190,7 +189,6 @@ LIBRARIES := -L$(LIB_OBJS) -L/usr/local/cuda/lib64 -lcudart
 #LIBRARIES := -L$(LIB_DIR) -lgpu -L/usr/local/cuda/lib64 -lcudart
 
 ################################################################################
-
 SAMPLE_ENABLED := 1
 
 # Gencode arguments
@@ -223,7 +221,6 @@ EXEC ?= @echo "[@]"
 endif
 
 ################################################################################
-
 # Target rules
 all: build
 
@@ -235,7 +232,7 @@ ifeq ($(SAMPLE_ENABLED),0)
 else
 	@echo "Sample is ready - all dependencies have been met"
 endif
-
+ 
 $(OBJ_DIR)/histogram.o: histogram.cpp $(HFILES) $(CUDA_HFILES) $(MAKEFILE) $(LIBOBJS)
 	$(EXEC) $(NVCC) $(INCLUDES)  $(CCDEFINES) $(ALL_CCFLAGS) $(GENCODE_FLAGS) -o $@ -c $<
 
