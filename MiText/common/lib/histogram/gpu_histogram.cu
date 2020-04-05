@@ -1,9 +1,14 @@
+/******************************************************
+ * Copyright: Rinka Singh/Melt Iron
+ * gpu_histogram.cu
+ ******************************************************/
+
 #include <milib.h>
 #include <cuda_milib.h>
 
 // functions exported
 unsigned int process_next_set_of_tokens (all_bufs *ab, ssize_t data_read);
-ssize_t cuda_read_buffer_into_gpu (all_bufs *ab, char *f_name);
+void cuda_read_buffer_into_gpu (all_bufs *ab, unsigned chars_read);
 unsigned int cuda_stream_to_wd_to_token (ssize_t read, all_bufs *ab);
 token_tracking *delete_token_tracking (token_tracking *curr);
 void cuda_free_everything (all_bufs *ab);
@@ -26,7 +31,7 @@ extern unsigned int get_d_val (unsigned int *d_val);
 extern void print_token_from_device (gpu_calc *gb, token_tracking *tt);
 
 // local functions, struct & variables
-// used in cuda_read_buffer_into_gpu & store_last_word
+// used in cuda_read_buffer_into_gpu
 typedef struct past_c_buf {
 	unsigned char	pbuf [STAT_MAX_WORD_SIZE];
 	unsigned int	len;
@@ -34,7 +39,6 @@ typedef struct past_c_buf {
 
 // __device__ unsigned int	d_wds [1]	= {0};	// number of  words
 
-static void store_last_word (struct past_c_buf *target, unsigned char *src, unsigned int num);
 static __global__ void K_histo_stream_to_words (unsigned char *d_buf, unsigned int *d_loc, ssize_t read, unsigned int *wd_idx);
 
 // We assume that we will not go out of memory.  Check for mem availability here and plan recovery from OOM situation.
@@ -135,81 +139,8 @@ unsigned int cuda_stream_to_wd_to_token (ssize_t read, all_bufs *ab)
 	return new_wds;
 }
 
-static void store_last_word (struct past_c_buf *target, unsigned char *src, unsigned int num)
+void cuda_read_buffer_into_gpu (all_bufs *ab, unsigned chars_read)
 {
-	unsigned int i, j = 0;
-	// walk back
-	if ('-' == src [num]) num--;
-	for (i = num - 1; i > 0 && cuda_AsciiIsAlnumApostrophe (src [i]); i--, j++);
-	if (0 == i) {
-		memset (target -> pbuf, '\0', sizeof (unsigned char) * STAT_MAX_WORD_SIZE);
-		target -> len = 0;
-	}
-	else {
-		target -> len = j;
-		strncpy ((char *) target -> pbuf, (char *) (src + i + 1), j);
-		memset (src + i + 1, '\0', j);
-	}
-}
-
-// code borrowed from: https://stackoverflow.com/questions/2371292/buffered-reading-from-stdin-using-fread-in-c
-ssize_t cuda_read_buffer_into_gpu (all_bufs *ab, char *f_name)
-{
-	ssize_t				buf_space = ab -> st_info.bufsiz - 1;
-	unsigned char		*buf_start = ab -> st_info.h_read_buf;
-	static past_c_buf	past;
-	static bool			first_time = true;
-	FILE				*fl = NULL;
-
-	if (true == first_time) {
-		past.len = 0;
-		first_time = false;
-	}
-	if (past.len) {
-		if (STAT_MAX_WORD_SIZE < past.len) past.len = STAT_MAX_WORD_SIZE;
-		strncpy ((char *) buf_start, (char *) past.pbuf, past.len);
-		buf_start += past.len;
-		buf_space -= past.len;
-	}
-
-	ssize_t				chars_read;
-	fl = fopen (f_name, "r");
-	chars_read = fread (buf_start, sizeof (unsigned char), buf_space, fl);
-	/***
-	 chars_read = read (STDIN_FILENO, (char *) ab -> st_info.*h_read_buf, buf_space * sizeof (unsigned char));
-	 // chars_read = (ssize_t) getline ((char **) &(ab -> st_info.h_read_buf), (size_t *) &buf_space, stdin);
-	 ***/
-	if (0 > chars_read) exit (chars_read);
-	if (past.len) {
-		chars_read += past.len;
-		past.len = 0;		// reset past: past tracked with past.len
-	}
-	else if (!chars_read) return chars_read;
-
-	ab -> st_info.h_read_buf [chars_read] = '\0';
-	// Dbg ("Data read - chars %d line %.100s", (int) chars_read, ab -> st_info.h_read_buf);
-
-	unsigned int i;
-	if (cuda_AsciiIsAlnumApostrophe (ab -> st_info.h_read_buf [chars_read - 1]) || '-' == ab -> st_info.h_read_buf [chars_read - 1]) {
-		store_last_word (&past, ab -> st_info.h_read_buf, chars_read);
-		chars_read -= past.len;
-		i = chars_read - 1;
-	}
-	else {
-		past.len = 0;
-		for (i = chars_read - 1; i > 0; i--) {
-			if (!cuda_AsciiIsAlnumApostrophe (ab -> st_info.h_read_buf [i])) {
-				ab -> st_info.h_read_buf [i] = '\0';
-				chars_read--;
-			}
-			else {
-				chars_read++;
-				break;
-			}
-		}
-	}
-	if (!i) return i;
-
 	gpuErrChk (cudaMemcpy (ab -> st_info.d_curr_buf, ab -> st_info.h_read_buf, chars_read * sizeof (unsigned char), cudaMemcpyHostToDevice));
 	// Dbg ("cp'd to device - chars %d line %1000s...", (int) chars_read, ab -> st_info.h_read_buf);
 
@@ -223,8 +154,6 @@ ssize_t cuda_read_buffer_into_gpu (all_bufs *ab, char *f_name)
 		gpuErrChk (cudaMemcpy (ab -> st_info.d_loc_maxsz, &h_loc_maxsz, sizeof (size_t), cudaMemcpyHostToDevice));
 		gpuErrChk (cudaMemset (ab -> st_info.d_loc, '\0', sizeof (size_t) * h_loc_maxsz));
 	}
-
-	return chars_read;
 }
 
 static void add_gpuMem_to_token_tracking (gpu_config *gc, token_tracking *tt, const unsigned int tok_size);
