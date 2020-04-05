@@ -1,10 +1,10 @@
 ########################################################
 # Rinka Singh/Melt Iron
 # Origin: Copyright 1993-2015, NVIDIA Corporation
-# basis of library is: http://docs.nvidia.com/cuda/cuda-compiler-driver-nvcc/index.html#examples this is the example that uses libraries, host linker and dynamic parallelism
+# basis of library is: http://docs.nvidia.com/cuda/cuda-compiler-driver-nvcc/index.html#examples
 ########################################################
 
-INC_DIR		= ../../common/include
+INC_DIR		= ../../../common/include
 OBJ_DIR		= ./obj_dir
 HISTO_DIR	= ./histogram
 TEST_DIR	= ./tdd/code
@@ -32,13 +32,12 @@ else
       DEBUG      :=
 endif
 
-GPUOBJS		=  $(OBJ_DIR)/sort_merge.o $(OBJ_DIR)/murmurHash3.o   $(OBJ_DIR)/lib_func.o    $(OBJ_DIR)/stop-words.o   $(OBJ_DIR)/histo_math.o   $(OBJ_DIR)/gpu_histogram.o   $(OBJ_DIR)/test_funcs.o
+GPUOBJS		=  $(OBJ_DIR)/sort_merge.o $(OBJ_DIR)/murmurHash3.o   $(OBJ_DIR)/lib_func.o    $(OBJ_DIR)/stop-words.o   $(OBJ_DIR)/histo_math.o   $(OBJ_DIR)/gpu_histogram.o  $(OBJ_DIR)/test_funcs.o
 ALLOBJS		=  $(OBJ_DIR)/histo.o $(GPUOBJS) $(OBJ_DIR)/lib_func.o
 
 LINK_TARGET	= $(OBJ_DIR)/histo.a
-CLEAN_REBUILDABLES = $(ALLOBJS) $(LINK_TARGET)  *ii core gdb.txt ../include/*~ *gcno valgrind.txt
-REBUILDABLES	= $(ALLOBJS) $(LINK_TARGET)
-HFILES		= $(INC_DIR)/milib.h
+CLEAN_REBUILDABLES = $(ALLOBJS)/. $(LINK_TARGET)  *ii core gdb.txt $(INC_DIR)/*~ *gcno valgrind.txt
+HFILES		= $(INC_DIR)/milib.h $(INC_DIR)/milib_classes.hpp
 CUDA_HFILES	= $(INC_DIR)/cuda_milib.h
 MAKEFILE	= Makefile
 
@@ -216,7 +215,7 @@ GENCODE_FLAGS += -gencode arch=compute_$(HIGHEST_SM),code=compute_$(HIGHEST_SM)
 endif
 endif
 
-INCLUDES += -I. -I../include/ -I$(CUDA_PATH)/include/
+INCLUDES += -I. -I$(INC_DIR) -I$(CUDA_PATH)/include/
 
 ifeq ($(SAMPLE_ENABLED),0)
 EXEC ?= @echo "[@]"
@@ -265,10 +264,10 @@ $(LINK_TARGET): $(ALLOBJS) $(HFILES) $(CUDA_HFILES) $(MAKEFILE)
 	$(EXEC) $(NVCC) --lib --output-file $@  $(ALLOBJS)
 
 clean:
-	rm -f *~ tdd/*~ $(HISTO_DIR)/*~ $(TEST_DIR)/*~ $(HFILES)/*~ $(CLEAN_REBUILDABLES) cmd
+	rm -f *~ tdd/*~ $(HISTO_DIR)/*~ $(TEST_DIR)/*~ $(CLEAN_REBUILDABLES) cmd
 
 clean_tilde:
-	rm -f *~ tdd/*~ $(HISTO_DIR)/*~ $(TEST_DIR)/*~ $(HFILES)/*~
+	rm -f *~ tdd/*~ $(HISTO_DIR)/*~ $(TEST_DIR)/*~ $(INC_DIR)/*~
 
 clobber: clean
 
