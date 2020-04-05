@@ -2,6 +2,8 @@
  * Copyright: Rinka Singh/Melt Iron
  * cuda_milib.h
  ******************************************************/
+#include <iostream>
+#include <cstring>
 
 #include <sys/types.h>
 #include <errno.h>
@@ -29,7 +31,6 @@
 #define _CUDA_MILIB_H_
 
 #define CUDA_FREE(x)		if(x){gpuErrChk(cudaFree((x))); (x)=NULL;}
-
 #define CUDA_GLOBAL_CHECK {gpuErrChk (cudaPeekAtLastError ()); gpuErrChk (cudaDeviceSynchronize ());}
 
 #if defined(__CUDACC__)		// NVCC
@@ -96,10 +97,9 @@ inline bool isOdd (unsigned int i)
 
 /* =================== histogram structures ====================== */
 // assumption: CHUNK_SIZE will always be > 16 so that spillover can be handled.
-// #define CHUNK_SIZE				16384
 // #define CHUNK_SIZE				4112
 // #define CHUNK_SIZE				8192
-// #define CHUNK_SIZE				32  // RS_DEBUG For testing
+// #define CHUNK_SIZE				32  // For testing
 #define STAT_MAX_WORD_SIZE			32
 // statistically 99.999% of words are within 20 chars + 4 chars to ensure that next word doesn't impact the hashing function.  Extra 10 char (size = 30) is buffer - 2 chars are to ensure hashing boundary is not crossed
 // RS_DEBUG - I don't handle unicode
