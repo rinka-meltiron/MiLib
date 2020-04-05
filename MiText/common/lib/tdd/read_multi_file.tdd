@@ -1,0 +1,49 @@
+/***
+ * TODO: read multiple files into a limited sized buffer
+ * Done:
+ * 	* Files are validated, exist
+ * 	* buffer allocated, size known
+ *
+ ***/
+
+bp = 0;								// buf pointer
+empty buffer (buf)
+bool isLastFile = false;
+
+for (all files one by one)
+	fp = 0;							// file pointer
+	f_size = sizeof (file);
+	if is_last (file) isLastFile = true;
+
+	while ((f_size - fp) > 0 && NOT isLastFile)
+		if (f_size - fp) > (buf_size - bp)	// bal file > bal buffer
+			append (to:buf (bp), from:file (fp), for:(buf_size - bp))
+			fp += (buf_size - bp)
+			bp = 0					// buf filled, process this
+			elseif (f_size - fp) == (buf_size - bp)	// bal file == bal buffer
+			append (to:buf (bp), from:file (fp), for:(buf_size - bp))
+			fp = 0; bp = 0			// buf filled, process this
+		else						// bal file < bal buffer
+			append (to:buf (bp), from:file (fp), for:(f_size - fp))
+			bp += (f_size - fp);
+			fp = 0;					// next file
+		endif
+
+		if (bp == 0 OR isLastFile == true)	// buffer filled up
+			process buffer (buf)
+			empty buffer (buf)
+		endif
+	endwhile
+endfor
+
+/***
+ * Tdd:
+ * create 5 files of sizes 5, 8, 10, 12, 18
+ * create buffer of size: 3, 6, 8, 13, 18 20
+ * copy file to buffer & print
+ * test:
+ * 	pass 1 file, 2 files, 5 files
+ * 	pass invalid file
+ * 	pass 3 files + invalid file
+ * 	pass 5 files + invalid file
+ ***/
