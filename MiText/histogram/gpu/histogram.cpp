@@ -14,7 +14,7 @@ extern void cuda_read_buffer_into_gpu (all_bufs *ab, unsigned chars_read);
 extern void create_stop_word (all_bufs *ab, FILE *fl);
 extern void math_histogram (all_bufs *ab);
 extern void cuda_free_everything (all_bufs *ab);
-extern void histo_initialize_global_structs (all_bufs *ab, unsigned int wds);
+extern void histo_initialize_global_structs (all_bufs *ab);
 extern void histo_time_taken (struct timeval *tvDiff, struct timeval *t2, struct timeval *t1, const char *messg);
 extern void memory_compaction (all_bufs *ab, token_tracking *tt_lst, unsigned int c_size);
 extern void print_token_tracking (gpu_calc *gb, token_tracking *hst);		// DEBUG
@@ -164,16 +164,6 @@ static bool read_files_fill_buffer (buffer_mgt& buf, char **in_files)
 			else {								// fb_diff == 0
 				break;
 			}
-		}
-
-		// RS_DEBUG - remove later.
-		if (1 == file_loc) {
-			return true;				// since we handle just one buffer
-		}
-		else {
-			Dbg ("We don't handle more than one file now");
-			Dbg ("Exiting");
-			exit (1);
 		}
 	}
 
@@ -360,16 +350,15 @@ int main (int argc, char **argv)
 		ssize_t		chars_read = buffer.get_pointer ();		// chars in buffer
 		cuda_read_buffer_into_gpu (&ab, chars_read);
 		if (0 < chars_read) {
-			unsigned int	wds = 0;
 			printf ("*** Got %u chars: %.200s...\n", (unsigned) chars_read, ab.st_info.h_read_buf);
 
 			DEBUG_CODE (gettimeofday (&t1, NULL));
-			wds = process_next_set_of_tokens (&ab, chars_read);
+			process_next_set_of_tokens (&ab, chars_read);
 			DEBUG_CODE (gettimeofday (&t2, NULL));
 			DEBUG_CODE (histo_time_taken (&tvDiff, &t2, &t1, "======== Next set of tokens ========"));
 			// printf ("--- pass %u done ---\n", i++);
 
-			histo_initialize_global_structs (&ab, wds);
+			histo_initialize_global_structs (&ab);
 		}
 	}
 

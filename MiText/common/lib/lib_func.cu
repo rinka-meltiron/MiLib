@@ -86,6 +86,7 @@ static void create_buffer (all_bufs *ab)
 	check_mem (ab -> st_info.h_read_buf);
 	memset (ab -> st_info.h_read_buf, '\0', ab -> st_info.bufsiz * sizeof (unsigned char));
 
+	ab -> h_tcurr = NULL;
 	ab -> h_ttrack = NULL;
 	ab -> IsS_wd = false;
 
