@@ -530,9 +530,15 @@ void milib_gpu_sort_merge_histo_wds (all_bufs *ab, bool is_stop_words)
 		set_sort_true (hd_sotc.d_is_K_Sorted);	// sorting across multiple funcs.
 
 		tmp = ab -> h_ttrack;
-		while (tmp -> next) tmp = tmp -> next;
-		tmp -> next = ab -> h_tcurr;
-		ab -> h_tcurr -> prev = tmp;
+		while (tmp && tmp -> next) tmp = tmp -> next;
+		if (tmp) {
+			tmp -> next = ab -> h_tcurr;
+			ab -> h_tcurr -> prev = tmp;
+		}
+		else {
+			ab -> h_tcurr -> prev = NULL;
+			ab -> h_ttrack = ab -> h_tcurr;
+		}
 		ab -> h_tcurr = NULL;
 		tmp = sort_token_chunks (ab -> h_ttrack);
 		while (ab -> h_ttrack -> prev) ab -> h_ttrack = ab -> h_ttrack -> prev;
