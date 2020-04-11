@@ -14,7 +14,7 @@ extern void cuda_read_buffer_into_gpu (all_bufs *ab, unsigned chars_read);
 extern void create_stop_word (all_bufs *ab, FILE *fl);
 extern void math_histogram (all_bufs *ab);
 extern void cuda_free_everything (all_bufs *ab);
-extern void histo_initialize_global_structs (all_bufs *ab, unsigned int wds);
+extern void histo_initialize_global_structs (all_bufs *ab);
 extern void histo_time_taken (struct timeval *tvDiff, struct timeval *t2, struct timeval *t1, const char *messg);
 extern void memory_compaction (all_bufs *ab, token_tracking *tt_lst, unsigned int c_size);
 extern void print_token_tracking (gpu_calc *gb, token_tracking *hst);		// DEBUG
@@ -25,9 +25,10 @@ extern void print_token_tracking (gpu_calc *gb, token_tracking *hst);		// DEBUG
 // We need to make it extensible.
 typedef struct args_for_processing {
 	bool apply_stop_words;			// stop words
-	bool deamonize;					// hold and expect more files or query
+	bool daemonize;					// hold and expect more files or query
 	// index held on both cpu & gpu
-	bool create_new_index;			// clean existing index & create new one
+	bool clean;						// clean existing index & create new one
+	bool quit;						// quit the daemon
 	// only if daemonized
 	bool output;					// write to stdout or to file
 
@@ -42,8 +43,9 @@ typedef struct args_for_processing {
 
 static struct option long_options [] = {
 	{"stop_words", required_argument, NULL, 's'},
-	{"deamonize", optional_argument, NULL, 'D'},
-	{"create_new_index", no_argument, NULL, 'c'},
+	{"daemonize", optional_argument, NULL, 'D'},
+	{"quit", no_argument, NULL, 'q'},
+	{"clean", no_argument, NULL, 'c'},
 	{"output", optional_argument, NULL, 'o'},
 	{NULL, 0, NULL, 0}
 };
@@ -165,16 +167,6 @@ static bool read_files_fill_buffer (buffer_mgt& buf, char **in_files)
 				break;
 			}
 		}
-
-		// RS_DEBUG - remove later.
-		if (1 == file_loc) {
-			return true;				// since we handle just one buffer
-		}
-		else {
-			Dbg ("We don't handle more than one file now");
-			Dbg ("Exiting");
-			exit (1);
-		}
 	}
 
 
@@ -184,11 +176,11 @@ static bool read_files_fill_buffer (buffer_mgt& buf, char **in_files)
 static void usage (char **v);
 static void usage (char **v)
 {
-	printf ("Usage:\nThe short form is: ./%s [-s <stopfile.txt>] [-D [-c]] [-o [outfile]] text1.txt text2.txt...\n", basename (v [0]));
-	printf ("and the long form is: ./%s [--stop_words <stopfile.txt>] [--deamonize [--create_new_index]] [--output [outfile]] text1.txt text2.txt...\n", basename (v [0]));
+	printf ("Usage:\nThe short form is: ./%s [-s <stopfile.txt>] [-D] [-c] [-q] [-o [outfile]] text1.txt text2.txt...\n", basename (v [0]));
+	printf ("and the long form is: ./%s [--stop_words <stopfile.txt>] [--daemonize] [--clean] [--quit] [--output [outfile]] text1.txt text2.txt...\n", basename (v [0]));
 	printf ("where:\n");
-	printf ("\t-D: daemonize\n\t-c: create_new_index - goes with the -D option only\n\t-s <stop_file>: Stop words file to be read\n\t-o [outfile]: output to outfile if given or else to stdout\n");
-	printf ("\tThe following functions have not been implemented:\n\t -D --daemonize\n\t--output -o\n\tmultiple input files: At this point we handle just one file");
+	printf ("\t-D: daemonize\n\t-c: clean\n\t-q: quit is meant to kill the daemon\n\tBoth the -c and -q option are of use if the -D option had been used previously\n\n\t-s <stop_file>: Stop words file to be read\n\t-o [outfile]: output to outfile if given or else to stdout\n");
+	printf ("\n\tThe following functions have not been implemented:\n\t -D --daemonize\n\t-o --output\n\t-c --clean\n\t-q --quit\n");
 }
 
 static bool file_exists (const char *fname);
@@ -257,7 +249,7 @@ static void arguments_processing (args_for_processing *afp, all_bufs *ab, int ar
 	while (c != -1 && true == ret)
 	{
 		int oi = -1;		// If oi != NULL, it points the index of the long option relative to longopts.
-		c = getopt_long (argc, argv, "?hs:D::co::", long_options, &oi);
+		c = getopt_long (argc, argv, "?hs:D::cqo::", long_options, &oi);
 		switch (c) {
 			case 's':
 				Dbg ("Stop File %s", optarg);
@@ -281,18 +273,26 @@ static void arguments_processing (args_for_processing *afp, all_bufs *ab, int ar
 				break;
 
 			case 'D':
-				afp -> deamonize = true;
+				afp -> daemonize = true;
 				{
-					Dbg ("deamonize Not implemented");
-					ret = false;		// TBD: because it is not implemented
+					Dbg ("daemonize Not implemented");
+					ret = false;		// TBD: not implemented
+				}
+				break;
+
+			case 'q':
+				afp -> quit = true;
+				{
+					Dbg ("quit Not implemented");
+					ret = false;		// TBD: not implemented
 				}
 				break;
 
 			case 'c':
-				afp -> create_new_index = true;
+				afp -> clean = true;
 				{
 					Dbg ("create new index Not implemented");
-					ret = false;		// TBD: because it is not implemented
+					ret = false;		// TBD: not implemented
 				}
 				break;
 
@@ -300,7 +300,7 @@ static void arguments_processing (args_for_processing *afp, all_bufs *ab, int ar
 				if (optarg) afp -> output_file = fopen ("optarg", "w");
 				else afp -> output_file = stdout;
 
-				{						// TBD: because not implemented
+				{						// TBD: not implemented
 					if (afp -> output_file && stdout != afp -> output_file) {
 						fclose (afp -> output_file);
 						afp -> output_file = NULL;
@@ -317,14 +317,18 @@ static void arguments_processing (args_for_processing *afp, all_bufs *ab, int ar
 		}
 	}
 
-	ret = store_input_files (afp, argv, optind, argc);
+	if (true == ret) ret = store_input_files (afp, argv, optind, argc);
 	// arg validation
 	if (true == afp -> apply_stop_words && NULL == afp -> stop_words_file) {
 		Dbg ("Valid stop word text file not given");
 		ret = false;
 	}
-	if (!afp -> deamonize && afp -> create_new_index) {
-		Dbg ("'create_new_index' goes with 'deamonize' option, not alone");
+	if (!afp -> daemonize && afp -> clean) {
+		Dbg ("'clean' applicable only if 'daemonize' option used");
+		ret = false;
+	}
+	if (!afp -> daemonize && afp -> quit) {
+		Dbg ("'quit' applicable only if 'daemonize' option used");
 		ret = false;
 	}
 
@@ -342,8 +346,8 @@ int main (int argc, char **argv)
 	args_for_processing afp;
 	memset (&afp, 0x00, sizeof (args_for_processing));
 
-	afp.deamonize = false;			// default process and exit
-	afp.create_new_index = false;	// default append to existing index
+	afp.daemonize = false;			// default process and exit
+	afp.clean = false;	// default append to existing index
 	afp.stop_words_file = NULL;		// no stop_words_file
 	afp.output_file = NULL;			// no file
 
@@ -360,26 +364,23 @@ int main (int argc, char **argv)
 		ssize_t		chars_read = buffer.get_pointer ();		// chars in buffer
 		cuda_read_buffer_into_gpu (&ab, chars_read);
 		if (0 < chars_read) {
-			unsigned int	wds = 0;
 			printf ("*** Got %u chars: %.200s...\n", (unsigned) chars_read, ab.st_info.h_read_buf);
 
 			DEBUG_CODE (gettimeofday (&t1, NULL));
-			wds = process_next_set_of_tokens (&ab, chars_read);
+			process_next_set_of_tokens (&ab, chars_read);
 			DEBUG_CODE (gettimeofday (&t2, NULL));
 			DEBUG_CODE (histo_time_taken (&tvDiff, &t2, &t1, "======== Next set of tokens ========"));
 			// printf ("--- pass %u done ---\n", i++);
 
-			histo_initialize_global_structs (&ab, wds);
+			histo_initialize_global_structs (&ab);
 		}
 	}
 
-	/***
 	// For debugging
 	Dbg ("========= print_token_tracking before math_histogram =========\n");
 	for (token_tracking *tmp = ab.h_ttrack; tmp; tmp = tmp -> next)
 		print_token_tracking (&ab.def_gpu_calc, tmp);
 	Dbg ("========= all done =========\n");
-	***/
 
 	// math_histogram (&ab);
 	// if (ab.h_ttrack) print_math_data (&ab.h_math);

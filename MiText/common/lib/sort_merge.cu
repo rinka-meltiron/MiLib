@@ -502,7 +502,7 @@ void milib_gpu_sort_merge_histo_wds (all_bufs *ab, bool is_stop_words)
 	gpuErrChk (cudaMemcpy (d_sotc, &hd_sotc, sizeof (data_sort_otc), cudaMemcpyHostToDevice));	// sotc is now in GPU
 
 	token_tracking *tmp;
-	for (tmp = ab -> h_ttrack; tmp; tmp = tmp -> next) {
+	for (tmp = ab -> h_tcurr; tmp; tmp = tmp -> next) {
 		// apply stop_words only when called from main, not while processing
 		// stop_words itself
 		if (ab -> IsS_wd && !is_stop_words) {
@@ -519,7 +519,7 @@ void milib_gpu_sort_merge_histo_wds (all_bufs *ab, bool is_stop_words)
 
 	/***
 	Dbg ("\n\n------ printing histo BEFORE sort_merge cross -------");
-	token_tracking *tst = ab -> h_ttrack;	// RS_DEBUG
+	token_tracking *tst = ab -> h_tcurr;	// RS_DEBUG
 	while (tst && tst -> prev) tst = tst -> prev;
 	for (; tst; tst = tst -> next) PRINT_HISTO (&ab -> def_gpu_calc, tst);
 	***/
@@ -529,6 +529,17 @@ void milib_gpu_sort_merge_histo_wds (all_bufs *ab, bool is_stop_words)
 	while (false == get_sort_status (hd_sotc.d_is_K_Sorted)) {
 		set_sort_true (hd_sotc.d_is_K_Sorted);	// sorting across multiple funcs.
 
+		tmp = ab -> h_ttrack;
+		while (tmp && tmp -> next) tmp = tmp -> next;
+		if (tmp) {
+			tmp -> next = ab -> h_tcurr;
+			ab -> h_tcurr -> prev = tmp;
+		}
+		else {
+			ab -> h_tcurr -> prev = NULL;
+			ab -> h_ttrack = ab -> h_tcurr;
+		}
+		ab -> h_tcurr = NULL;
 		tmp = sort_token_chunks (ab -> h_ttrack);
 		while (ab -> h_ttrack -> prev) ab -> h_ttrack = ab -> h_ttrack -> prev;
 		if (!tmp) tmp = ab -> h_ttrack;

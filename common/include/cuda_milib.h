@@ -194,6 +194,7 @@ typedef struct all_bufs {		// all global variables
 	mhash_vals		*d_sw_list;
 	unsigned int	*d_sw_nos;
 
+	token_tracking	*h_tcurr;	// current token CPU/tok GPU
 	token_tracking	*h_ttrack;	// token CPU/tok GPU
 	math_results	h_math;
 

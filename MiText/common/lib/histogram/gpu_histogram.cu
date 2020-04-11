@@ -14,7 +14,7 @@ token_tracking *delete_token_tracking (token_tracking *curr);
 void cuda_free_everything (all_bufs *ab);
 token_tracking *create_token_tracking (gpu_config *gc, const unsigned int c_size);
 
-void histo_initialize_global_structs (all_bufs *ab, unsigned int wds);
+void histo_initialize_global_structs (all_bufs *ab);
 void update_h_ttrack (gpu_calc *gb, token_tracking *h_ttrack);
 void __global__ K_get_d_data_out (token *out, token **d_data, const size_t c_size);
 void reset_all_tt (all_bufs *ab);
@@ -83,7 +83,7 @@ unsigned int cuda_stream_to_wd_to_token (ssize_t read, all_bufs *ab)
 	const unsigned int new_hist = cuda_int_div_rounded (new_wds, ab -> def_gpu_calc.block_size);
 	Dbg ("data_read %u words %u hist %u", (unsigned) read, (unsigned) new_wds, (unsigned) new_hist);
 
-	token_tracking *tmp_hist = ab -> h_ttrack, *start;
+	token_tracking *tmp_hist = ab -> h_tcurr, *start;
 	if (tmp_hist) {
 		while (tmp_hist -> next) tmp_hist = tmp_hist -> next;
 		tmp_hist -> next = create_token_tracking (&ab -> gc, ab -> def_gpu_calc.block_size);
@@ -91,7 +91,7 @@ unsigned int cuda_stream_to_wd_to_token (ssize_t read, all_bufs *ab)
 		start = tmp_hist = tmp_hist -> next;
 	}
 	else {
-		start = tmp_hist = ab -> h_ttrack = create_token_tracking (&ab -> gc, ab -> def_gpu_calc.block_size);
+		start = tmp_hist = ab -> h_tcurr = create_token_tracking (&ab -> gc, ab -> def_gpu_calc.block_size);
 	}
 
 	// one already created before so new_hist - 1
@@ -144,7 +144,7 @@ void cuda_read_buffer_into_gpu (all_bufs *ab, unsigned chars_read)
 	gpuErrChk (cudaMemcpy (ab -> st_info.d_curr_buf, ab -> st_info.h_read_buf, chars_read * sizeof (unsigned char), cudaMemcpyHostToDevice));
 	// Dbg ("cp'd to device - chars %d line %1000s...", (int) chars_read, ab -> st_info.h_read_buf);
 
-	ssize_t	h_loc_maxsz;
+	static ssize_t	h_loc_maxsz = 0;
 	gpuErrChk (cudaMemcpy (&h_loc_maxsz, ab -> st_info.d_loc_maxsz, sizeof (size_t), cudaMemcpyDeviceToHost));
 	if (h_loc_maxsz < chars_read) {	// possible words read < max chars read
 		CUDA_FREE (ab -> st_info.d_loc);
@@ -237,6 +237,10 @@ void reset_all_tt (all_bufs *ab)
 	token_tracking *tmp_tt = ab -> h_ttrack;
 	while (tmp_tt) tmp_tt = delete_token_tracking (tmp_tt);
 	ab -> h_ttrack = NULL;
+
+	tmp_tt = ab -> h_tcurr;
+	while (tmp_tt) tmp_tt = delete_token_tracking (tmp_tt);
+	ab -> h_tcurr = NULL;
 }
 
 void cuda_free_everything (all_bufs *ab)
@@ -316,9 +320,21 @@ static __global__ void K_words_to_token (token **d_data, const data_for_K_words_
 }
 
 // initialize the global vars for next set words coming in
-void histo_initialize_global_structs (all_bufs *ab, unsigned int wds)
+void histo_initialize_global_structs (all_bufs *ab)
 {
 	set_to_zero (ab -> d_wds);
+	gpuErrChk (cudaMemset (ab -> st_info.d_curr_buf, 0x00, sizeof (unsigned char) *  ab -> st_info.bufsiz));
+	memset (ab -> st_info.h_read_buf, 0x00, sizeof (unsigned char) *  ab -> st_info.bufsiz);
+	gpuErrChk (cudaMemset (ab -> st_info.d_loc, 0x00, sizeof (unsigned char)));
+
+	ab -> st_info.pitch = ab -> st_info.bufsiz = 0;
+	gpuErrChk (cudaMemset (ab -> d_wds, 0x00, sizeof (unsigned int)));
+
+	words *tmp_d_list = ab -> h_math.d_num_list;
+	words *tmp_h_list = ab -> h_math.h_num_list;
+	memset (&ab -> h_math, 0x00, sizeof (math_results));
+	ab -> h_math.d_num_list = tmp_d_list;
+	ab -> h_math.h_num_list = tmp_h_list;
 }
 
 static void __global__ K_add_tok_mem_to_d_data (token **d_data, token *d_contents, const unsigned int tok);
