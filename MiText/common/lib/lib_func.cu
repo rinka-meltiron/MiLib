@@ -235,7 +235,6 @@ __device__ __host__ bool cuda_AsciiIsAlnumApostrophe (unsigned char c)
 	else return false;
 }
 
-// RS_DEBUG currently tok_mhash. should be made generic & put in cuda_milib.h
 __device__ void cuda_swap_mem (tok_mhash *d_mem1, tok_mhash *d_mem2)
 {
 	register tok_mhash tmp_mem;

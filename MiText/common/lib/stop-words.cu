@@ -131,7 +131,7 @@ static __global__ void K_Histo_apply_stop_words (token **tok, const mhash_vals *
 
 #pragma unroll 128
 	for (int i = 0; i < c_size; i++) {
-		// TBD: RS_DEBUG relook = each thread should be one combo of chunk & swd
+		// TBD: RS_DEBUG relook = each thread should be one combo of chunk & swd.  texture memory?
 
 		// CudaDbgPrn ("stp:%u %u %.2s|token_loc:%u %u %.2s", (unsigned) gTh, (unsigned) stp_wds [gTh].mhash, stp_wds [gTh].str, (unsigned) i, (unsigned) tok [i] -> mhv.mhash, tok [i] -> mhv.str);
 
@@ -167,7 +167,7 @@ void apply_stop_words (token_tracking *hs, all_bufs *ab)
 	// apply and delete sw
 	/***
 	Dbg ("*** Applying stop words ***");
-	Dbg ("stop_words"); print_stop_words (&ab -> def_gpu_calc, ab -> d_sw_list, ab -> d_sw_nos);	// RS_DEBUG
+	Dbg ("stop_words"); print_stop_words (&ab -> def_gpu_calc, ab -> d_sw_list, ab -> d_sw_nos);
 	Dbg ("To list:"); PRINT_HISTO (&ab -> def_gpu_calc, hs);
 	***/
 

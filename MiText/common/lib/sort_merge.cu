@@ -80,7 +80,6 @@ static void set_sort_false (volatile unsigned int *d_Srtd)
  * ct Assumption: ALL of curr [th] - *tok is on ct.
  * zero out curr *tok no problem. zeroing out *tok contents could have issue
  * DON'T zero *tok contents EXCEPT in MERGE.
- * TBD: RS_DEBUG
  * The three alternatives are:
  * 1. chunk_size = 1/8th of maxThreads & scratchpad = maxThreads
  * 2. chunk_size = half of maxThreads & scratchpad = maxThreads * 4
@@ -519,7 +518,7 @@ void milib_gpu_sort_merge_histo_wds (all_bufs *ab, bool is_stop_words)
 
 	/***
 	Dbg ("\n\n------ printing histo BEFORE sort_merge cross -------");
-	token_tracking *tst = ab -> h_tcurr;	// RS_DEBUG
+	token_tracking *tst = ab -> h_tcurr;
 	while (tst && tst -> prev) tst = tst -> prev;
 	for (; tst; tst = tst -> next) PRINT_HISTO (&ab -> def_gpu_calc, tst);
 	***/
@@ -550,7 +549,7 @@ void milib_gpu_sort_merge_histo_wds (all_bufs *ab, bool is_stop_words)
 
 		/***
 		Dbg ("\n\n------ printing histo BEFORE memory_compaction -------");
-		tst = ab -> h_ttrack;	// RS_DEBUG
+		tst = ab -> h_ttrack;
 		while (tst && tst -> prev) tst = tst -> prev;
 		for (; tst; tst = tst -> next) PRINT_HISTO (&ab -> def_gpu_calc, tst);
 		***/
@@ -562,7 +561,7 @@ void milib_gpu_sort_merge_histo_wds (all_bufs *ab, bool is_stop_words)
 
 		/***
 		Dbg ("\n\n------ printing histo AFTER memory_compaction -------");
-		tst = ab -> h_ttrack;	// RS_DEBUG
+		tst = ab -> h_ttrack;
 		while (tst && tst -> prev) tst = tst -> prev;
 		for (; tst; tst = tst -> next) PRINT_HISTO (&ab -> def_gpu_calc, tst);
 		***/
@@ -813,7 +812,7 @@ static bool sort_merge_histo_cross (all_bufs *ab, token_tracking **curr , data_s
 
 	/***
 	Dbg ("\n\n------ after copy_scratchpad_to_multi_tgt -------");
-	token_tracking *tst = ab -> h_ttrack;	// RS_DEBUG
+	token_tracking *tst = ab -> h_ttrack;
 	while (tst && tst -> prev) tst = tst -> prev;
 	for (; tst; tst = tst -> next) print_token_from_device (&gb, tst);
 	for (; tst; tst = tst -> next) PRINT_HISTO (&gb, tst);
