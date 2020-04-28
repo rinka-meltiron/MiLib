@@ -12,6 +12,10 @@ public:
 	unsigned long	len;				// length of buffer
 
 	buffer_mgt (unsigned char *buf, unsigned long l) {
+		if (0 == l) {
+			Dbg ("zero length, exiting");
+			exit (1);
+		}
 		len = l;
 		buffer = buf;
 		reset ();
@@ -60,14 +64,18 @@ public:
 		if (file) {
 			fseek (file, 0L, SEEK_END);
 			len = (unsigned long) ftell (file);
-
-			char ch;
-			while (!isalnum (ch = getc (file))) {
-				len--;
-				fseek (file, len, SEEK_SET);
+			if (0 == len) {			// zero file
+				Dbg ("Zero sized file passed");
 			}
-			len++;
-			fseek (file, 0L, SEEK_SET);
+			else {
+				char ch;
+				while (!isalnum (ch = getc (file))) {
+					len--;
+					fseek (file, len, SEEK_SET);
+				}
+				len++;
+				fseek (file, 0L, SEEK_SET);
+			}
 
 			return true;
 		}

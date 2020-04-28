@@ -67,7 +67,7 @@ static void gpu_configuration (gpu_config *gc)
 	gc -> dev_prop.warpSize, gc -> dev_prop.maxThreadsPerBlock,
 	gc -> dev_prop.maxThreadsPerMultiProcessor);
 
-	K_dummy <<<1,1>>> ();
+	K_dummy <<<1,1>>> ();		// warm up the GPU
 	CUDA_GLOBAL_CHECK;
 }
 
@@ -103,6 +103,7 @@ static void create_buffer (all_bufs *ab)
 	return;
 
 error:
+	Dbg ("Out of Memory");
 	exit (1);
 }
 
@@ -138,14 +139,14 @@ void set_ab_values (all_bufs *ab)
 static __global__ void K_dummy (void)
 {
 	unsigned int i;
-
-	i = WRONG_ARGS + WRONG_ARGS;	// just running any code to warm the card up.
+	i = 2 + 2;		// running any ole' code to warm the card up.
 	i++;
 }
 
 uint64_cu asc_to_uint64_cu (const char *txt)
 {
-	 uint64_cu num = 0;
+	assert (txt);
+	uint64_cu num = 0;
 	 for (; ((*txt) && (*txt != '.')); txt++) {
 		 char digit = *txt - '0';
 		 num = (num * 10) + digit;
@@ -172,12 +173,14 @@ void histo_time_taken (struct timeval *tvDiff, struct timeval *t2, struct timeva
 
 void set_to_zero (unsigned int *d_val)
 {
+	assert (d_val);
 	unsigned int i = 0;
 	gpuErrChk (cudaMemcpy (d_val, &i, sizeof (unsigned int), cudaMemcpyHostToDevice));
 }
 
 unsigned int get_d_val (unsigned int *d_val)
 {
+	assert (d_val);
 	unsigned int tmp_wds = 0;
 	gpuErrChk (cudaMemcpy (&tmp_wds, d_val, sizeof (unsigned int), cudaMemcpyDeviceToHost));
 
@@ -196,14 +199,19 @@ __device__ __host__ uint32_cu cuda_int_div_rounded (uint64_cu num, const unsigne
 
 __device__ void cuda_strn_cpy (unsigned char *tgt, const unsigned char *src, const unsigned len)
 {
+	assert (tgt);
+	assert (src);
+
 	unsigned i;
 	// CudaDbgPrn ("len %u", len);
 	for (i = 0; i < len && i < STAT_MAX_WORD_SIZE; i++) tgt [i] = src [i];
 	tgt [len] = (unsigned char)  '\0';
 }
 
+// assume str is null terminated.
 __device__ unsigned cuda_string_len (unsigned char *str)
 {
+	assert (str);
 	unsigned i = (unsigned) 0;
 	unsigned char *s = str;
 	for (; s && *s; ++s) ++i;
@@ -231,12 +239,14 @@ __device__ __host__ bool cuda_AsciiIsAlnumApostrophe (unsigned char c)
 {
 	register unsigned char d = c & ~0x20;
 
-	if ((c >= '0' && c <= '9') || (d >= 'A' && d  <= 'Z') || c == '\'') return true;
+	if ((c >= '0' && c <= '9') || (d >= 'A' && d  <= 'Z') || c == '\'' || c == '-') return true;
 	else return false;
 }
 
 __device__ void cuda_swap_mem (tok_mhash *d_mem1, tok_mhash *d_mem2)
 {
+	assert (d_mem1);
+	assert (d_mem2);
 	register tok_mhash tmp_mem;
 
 	cuda_MemSet (&tmp_mem, (uint8_t) 0x00, (uint32_t) sizeof (tok_mhash));
@@ -337,6 +347,8 @@ __device__ __host__ void *cuda_MemCpy (void *pDst,void *pSrc, const uint32_t siz
 
 __device__ __host__ void *cuda_MemSet (void* pDst, const uint8_t val, const uint32_t size)
 {
+	assert (pDst);
+
 	typedef struct memSet_struct {
 		uint32_t	sz;
 		uint64_t	val64;
@@ -377,6 +389,9 @@ __device__ __host__ void *cuda_MemSet (void* pDst, const uint8_t val, const uint
 
 bool __device__ __host__ isGreater (const mhash_vals *curr, const mhash_vals *next)
 {
+	assert (curr);
+	assert (next);
+
 	if (curr -> mhash) {
 		// CudaDbgPrn ("mhash: %u/%u: curr: %.2s next %.2s", (unsigned) curr -> mhash, (unsigned) next -> mhash, curr -> str, next -> str);
 		// CudaDbgPrn ("diff %d", (int) (curr -> mhash - next -> mhash));
@@ -403,6 +418,9 @@ bool __device__ __host__ isGreater (const mhash_vals *curr, const mhash_vals *ne
 
 bool __device__ __host__ isEqual (const mhash_vals *curr, const mhash_vals *next)
 {
+	assert (curr);
+	assert (next);
+
 	if (curr -> mhash && curr -> mhash == next -> mhash) {
 		// CudaDbgPrn ("curr/next match mhash: %u/%u: st:%.2s/%.2s", (unsigned) curr -> mhash, (unsigned) next -> mhash, curr -> str, next -> str);
 

@@ -94,8 +94,8 @@ unsigned int cuda_stream_to_wd_to_token (ssize_t read, all_bufs *ab)
 		start = tmp_hist = ab -> h_tcurr = create_token_tracking (&ab -> gc, ab -> def_gpu_calc.block_size);
 	}
 
-	// one already created before so new_hist - 1
-	for (unsigned int i = 0; i < (new_hist - 1); i++) {	// create blank tt AFTER
+	// one already created before so new_hist - 1: create blank tt AFTER
+	for (unsigned int i = 0; i < (new_hist - 1); i++) {
 		tmp_hist -> next = create_token_tracking (&ab -> gc, ab -> def_gpu_calc.block_size);
 		tmp_hist -> next -> prev = tmp_hist;
 		tmp_hist = tmp_hist -> next;
@@ -104,7 +104,6 @@ unsigned int cuda_stream_to_wd_to_token (ssize_t read, all_bufs *ab)
 	tmp_hist = start;					// put tokens from here
 
 	data_for_K_words_to_token hd_Kwtt;
-
 	static data_for_K_words_to_token *d_Kwtt = NULL;
 	if (!d_Kwtt) {
 		gpuErrChk (cudaMalloc (&d_Kwtt, sizeof (data_for_K_words_to_token)));
@@ -134,13 +133,14 @@ unsigned int cuda_stream_to_wd_to_token (ssize_t read, all_bufs *ab)
 		gpuErrChk (cudaMemcpy (&tmp_hist -> h_num_free, tmp_hist -> d_num_free, sizeof (unsigned int), cudaMemcpyDeviceToHost));
 	}
 
-	Dbg ("read:%u, words:%u str %.100s\n", (unsigned) read, new_wds, ab -> st_info.h_read_buf);
+	Dbg ("read:%u, words:%u str %.1000s...", (unsigned) read, new_wds, ab -> st_info.h_read_buf);
 
 	return new_wds;
 }
 
 void cuda_read_buffer_into_gpu (all_bufs *ab, unsigned chars_read)
 {
+	// read data into gpu
 	gpuErrChk (cudaMemcpy (ab -> st_info.d_curr_buf, ab -> st_info.h_read_buf, chars_read * sizeof (unsigned char), cudaMemcpyHostToDevice));
 	// Dbg ("cp'd to device - chars %d line %1000s...", (int) chars_read, ab -> st_info.h_read_buf);
 
@@ -157,7 +157,6 @@ void cuda_read_buffer_into_gpu (all_bufs *ab, unsigned chars_read)
 }
 
 static void add_gpuMem_to_token_tracking (gpu_config *gc, token_tracking *tt, const unsigned int tok_size);
-static void fill_out_token_tracking (token_tracking *tt, unsigned int tok_size);
 
 /***
  * Default token size is chunk_size.  In this case block_size == chunk_size
@@ -174,7 +173,12 @@ token_tracking *create_token_tracking (gpu_config *gc, const unsigned int c_size
 	h_new -> h_data	= (token *) malloc (sizeof (token) * c_size);
 	check_mem (h_new -> h_data);
 
-	fill_out_token_tracking (h_new, c_size);
+	h_new -> h_num_free = c_size;
+	h_new -> chunk_size = c_size;
+	h_new -> stopWord_applied = false;
+	h_new -> prev = h_new -> next = NULL;
+
+	gpuErrChk (cudaMemcpy (h_new -> d_num_free, &(h_new -> h_num_free), sizeof (unsigned int), cudaMemcpyHostToDevice));
 	return h_new;
 
 error:
@@ -201,11 +205,11 @@ token_tracking *delete_token_tracking (token_tracking *curr)
 		to_ret = prev;
 		to_ret -> next = NULL;
 	}
-	else if (next && !prev) {		// del curr, reset next, return next
+	else if (next && !prev) {		// this is first, return next
 		to_ret = next;
 		to_ret -> prev = NULL;
 	}
-	else if (!next && !prev) {
+	else if (!next && !prev) {		// only one is there
 		to_ret = NULL;
 	}
 	// curr = prev, del next prev = next-> next next = prev
@@ -230,8 +234,7 @@ static void phy_delete_tt_chunk (token_tracking *curr)
 	FREE (todel);
 }
 
-// delete all tt except one.
-// ensure that this tt is flushed out
+// delete all tt
 void reset_all_tt (all_bufs *ab)
 {
 	token_tracking *tmp_tt = ab -> h_ttrack;
@@ -272,7 +275,7 @@ static __global__ void K_histo_stream_to_words (unsigned char *d_buf, unsigned i
 	if (is_ch && !is_prev_ch) {	// beginning of word
 		unsigned int old_wd = atomicAdd ((unsigned int *) wd_idx, (unsigned int) 1);
 		d_loc [old_wd] = gTh;		// loc of start of next word
-		// CudaDbgPrn ("th (& loc): %u old_wd (wd no) %u: wd %.20s", (unsigned) gTh, (unsigned) old_wd, &d_buf [gTh]);
+		CudaDbgPrn ("th (& loc): %u old_wd (wd no) %u: wd %.20s", (unsigned) gTh, (unsigned) old_wd, &d_buf [gTh]);
 	}
 }
 
@@ -289,7 +292,7 @@ static __global__ void K_words_to_token (token **d_data, const data_for_K_words_
 		// CudaDbgPrn ("gTh %u:mem %p: chunk no %u d_loc_idx:%u free %u", (unsigned) gTh, d_data [gTh], (unsigned) kw -> loc, (unsigned) d_loc_idx, (unsigned) *d_free);
 
 		unsigned len = (unsigned) cuda_string_len ((unsigned char *) &kw -> d_wds [kw -> d_loc [d_loc_idx]]);
-		if (len > STAT_MAX_WORD_SIZE) len = (unsigned) STAT_MAX_WORD_SIZE - 2;
+		if (len > STAT_MAX_WORD_SIZE) len = (unsigned) STAT_MAX_WORD_SIZE;
 		// CudaDbgPrn ("gTh: %u before dbuf %.20s len %u", (unsigned) gTh, &kw -> d_wds [kw -> d_loc [d_loc_idx]], (unsigned) len);
 
 		cuda_MemCpy (st [gTh].wd.str, (void *) &kw -> d_wds [kw -> d_loc [d_loc_idx]], (uint32_t) (len * sizeof (unsigned char)));
@@ -344,6 +347,7 @@ static void add_gpuMem_to_token_tracking (gpu_config *gc, token_tracking *tt, co
 	gpuErrChk (cudaMalloc (&d_dt, sizeof (token) * tok_size));
 	gpuErrChk (cudaMemset (d_dt, '\0', sizeof (token) * tok_size));
 	tt -> d_tok_start = d_dt;
+	gpuErrChk (cudaMalloc (&(tt -> d_num_free), sizeof (unsigned int)));
 
 	token **d_ret;		// new d_data
 	gpuErrChk (cudaMalloc (&d_ret, sizeof (token **) * tok_size));
@@ -366,20 +370,14 @@ static void __global__ K_add_tok_mem_to_d_data (token **d_data, token *d_content
 	d_data [gTh] = (token *) (d_contents + gTh);
 }
 
-static void fill_out_token_tracking (token_tracking *tt, unsigned int tok_size)
-{
-	tt -> h_num_free = tok_size;
-	tt -> chunk_size = tok_size;
-	tt -> stopWord_applied = false;
-	tt -> prev = tt -> next = NULL;
+/**
+ * This is done only when there are empty tokens or at end of sorting
+ * memory compaction done ONLY after a complete sort so the zeros are
+ * all on the left.
+ * Compute this only at the end.
+ * creates fresh token chunks and localizes data
+ **/
 
-	gpuErrChk (cudaMalloc (&(tt -> d_num_free), sizeof (unsigned int)));
-	gpuErrChk (cudaMemcpy (tt -> d_num_free, &(tt -> h_num_free), sizeof (unsigned int), cudaMemcpyHostToDevice));
-}
-
-// This is done only when there are empty tokens or at end of sorting
-// memory compaction done ONLY after a complete sort so the zeros are
-// all on the left.
 static void cp_src_to_tgt (gpu_calc *gb, token_tracking *dest, token_tracking *src);
 void memory_compaction (all_bufs *ab)
 {
@@ -457,20 +455,15 @@ void update_h_ttrack (gpu_calc *gb, token_tracking *h_ttrack)
 {
 	static token		*d_out = NULL;
 	static unsigned int	sz = 0x0;
-	if (0x0 == sz) sz = h_ttrack -> chunk_size;
-	dim3 grid ((h_ttrack -> chunk_size + gb -> block.x - 1) / gb -> block.x);
-
-	if (!d_out) {
-		gpuErrChk (cudaMalloc (&d_out, sizeof (token) * h_ttrack -> chunk_size));
-	}
-	else if (sz < h_ttrack -> chunk_size) {
-		CUDA_FREE (d_out);
-		gpuErrChk (cudaMalloc (&d_out, sizeof (token) * h_ttrack -> chunk_size));
+	if (0x0 == sz || !d_out) {
 		sz = h_ttrack -> chunk_size;
+		gpuErrChk (cudaMalloc (&d_out, sizeof (token) * h_ttrack -> chunk_size));
 	}
-
 	gpuErrChk (cudaMemset (d_out, '\0', sizeof (token) * h_ttrack -> chunk_size));
+
 	gpuErrChk (cudaMemcpy (&h_ttrack -> h_num_free, h_ttrack -> d_num_free, sizeof (unsigned int), cudaMemcpyDeviceToHost));
+
+	dim3 grid ((h_ttrack -> chunk_size + gb -> block.x - 1) / gb -> block.x);
 	if (h_ttrack -> chunk_size > h_ttrack -> h_num_free) {
 		K_get_d_data_out <<<grid, gb -> block>>> (d_out, h_ttrack -> d_data, h_ttrack -> chunk_size);
 		CUDA_GLOBAL_CHECK;

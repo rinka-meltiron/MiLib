@@ -82,7 +82,7 @@ static ssize_t cuda_stop_word_read_buffer_into_gpu (all_bufs *ab, FILE *f)
 
 	for (;!cuda_AsciiIsAlnumApostrophe (ab -> st_info.h_read_buf [chars_read]); chars_read--) {
 		ab -> st_info.h_read_buf [chars_read] = '\0';
-	}			// adjusting backward if the last chars are not alpha numeric
+	}			// go back if the last chars are not alpha numeric
 	chars_read++;
 
 	gpuErrChk (cudaMemcpy (ab -> st_info.d_curr_buf, ab -> st_info.h_read_buf, (chars_read + 1) * sizeof (unsigned char), cudaMemcpyHostToDevice));
@@ -102,7 +102,7 @@ void create_stop_word (all_bufs *ab, FILE *fl)
 
 	ab -> h_Swds = cuda_stream_to_wd_to_token (c_read, ab);
 	if (ab -> h_Swds) {
-		milib_gpu_sort_merge_histo_wds (ab, true);	// is_stop_words == true
+		milib_gpu_sort_merge_histo_wds (ab, true);	// is_stop_words?
 	}
 
 	cuda_create_stop_word_lst (ab, ab -> d_wds);
@@ -131,7 +131,7 @@ static __global__ void K_Histo_apply_stop_words (token **tok, const mhash_vals *
 
 #pragma unroll 128
 	for (int i = 0; i < c_size; i++) {
-		// TBD: RS_DEBUG relook = each thread should be one combo of chunk & swd.  texture memory?
+		// TBD: RS_DEBUG relook = each thread should be one combo of chunk & swd. texture memory?
 
 		// CudaDbgPrn ("stp:%u %u %.2s|token_loc:%u %u %.2s", (unsigned) gTh, (unsigned) stp_wds [gTh].mhash, stp_wds [gTh].str, (unsigned) i, (unsigned) tok [i] -> mhv.mhash, tok [i] -> mhv.str);
 

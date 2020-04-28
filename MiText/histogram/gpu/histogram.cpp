@@ -22,7 +22,6 @@ extern void print_token_tracking (gpu_calc *gb, token_tracking *hst);		// DEBUG
 #define INPUT_FILES					256
 
 // TBD: RS_DEBUG the INPUT_FILES is limited to 256 files.
-// We need to make it extensible.
 typedef struct args_for_processing {
 	bool apply_stop_words;			// stop words
 	bool daemonize;					// hold and expect more files or query
@@ -68,15 +67,21 @@ static bool push_last_word (buffer_mgt& last_wd, buffer_mgt& buf, file_mgt& file
 		unsigned wd_sz = 0;
 		unsigned buf_loc;
 
-		if (0 == buf.get_pointer ()) return 0;	// error
-		for (buf_loc = buf.get_pointer () - 1; isalnum (buf.buffer [buf_loc]) && buf_loc > 0; buf_loc--) wd_sz++;
+		if (0 == buf.get_pointer ()) {
+			Dbg ("Error, there should be data in buffer");
+			return false;	// error
+		}
+		for (buf_loc = buf.get_pointer () - 1;
+			isalnum (buf.buffer [buf_loc]) && buf_loc > 0;
+			buf_loc--)
+				wd_sz++;
 		if (0 == buf_loc) return false;
 
 		buf_loc++;
 
 		strncpy ((char *) last_wd.buffer, (char *) (buf.buffer + buf_loc), wd_sz);
-		last_wd.buffer [wd_sz] = ' ';
-		memset (buf.buffer + buf_loc, ' ', wd_sz * sizeof (char));
+		last_wd.buffer [wd_sz] = '\0';
+		memset (buf.buffer + buf_loc, '\0', wd_sz * sizeof (char));
 		buf.set_pointer (buf_loc);			// reset the last wd in buffer
 		last_wd.set_pointer (wd_sz);		// got word from buffer
 	}										// else do nothing
@@ -138,6 +143,8 @@ static bool read_files_fill_buffer (buffer_mgt& buf, char **in_files)
 					return false;
 				}
 			}
+
+			if (0 == fm.len) continue;		// get next file
 		}
 
 		// fb_diff is actual difference: file == buf:0, file < buf:-, file > buf:+
@@ -190,6 +197,7 @@ static bool file_exists (const char *fname)
 	else return false;
 }
 
+#define		MAX_FILES			255
 static bool store_input_files (args_for_processing *afp, char **v, const int start, const int end);
 static bool store_input_files (args_for_processing *afp, char **v, const int start, const int end)
 {
@@ -197,6 +205,10 @@ static bool store_input_files (args_for_processing *afp, char **v, const int sta
 	bool ret = true;
 	if (start == end) {
 		Dbg ("Error: No input files given\nExiting...");
+		ret = false;
+	}
+	if ((end - start) > MAX_FILES) {
+		Dbg ("More than %u files passed - max files exceeded", MAX_FILES);
 		ret = false;
 	}
 
@@ -318,9 +330,18 @@ static void arguments_processing (args_for_processing *afp, all_bufs *ab, int ar
 	}
 
 	if (true == ret) ret = store_input_files (afp, argv, optind, argc);
+
 	// arg validation
 	if (true == afp -> apply_stop_words && NULL == afp -> stop_words_file) {
 		Dbg ("Valid stop word text file not given");
+		ret = false;
+	}
+	if (true == afp -> apply_stop_words && true == afp -> quit) {
+		Dbg ("You are quitting, stop_words are not useful");
+		ret = false;
+	}
+	if (true == afp -> clean && false == afp -> daemonize) {
+		Dbg ("Not a Daemon, nothing to clean");
 		ret = false;
 	}
 	if (!afp -> daemonize && afp -> clean) {

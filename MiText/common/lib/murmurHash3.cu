@@ -35,6 +35,7 @@ __device__ uint32_t MurmurHash3_32 (const unsigned char *data, const unsigned in
 	const int nblocks = (int) (nbytes / 4);
 
 	uint32_t k, h = (uint32_t) 0;
+#pragma unroll 8
 	for (int i = 0; i < nblocks; i++) {
 		k = (uint32_t) *(data + i);
 

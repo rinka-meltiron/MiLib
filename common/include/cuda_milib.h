@@ -107,10 +107,6 @@ inline bool isOdd (unsigned int i)
 // the next two defines are for cuda_MemCpy2D
 #define NUM_ROWS					1
 
-typedef enum {FOUND, NOT_FOUND, INSERT_BEFORE_HEAD}	where;
-typedef enum {SWAP, MERGE, MOVE, NONE}	action;
-typedef enum {FORWARD, BACK, HERE}		direction;
-
 // base histogram info
 typedef struct stream_info {
 	unsigned char	*d_curr_buf;
