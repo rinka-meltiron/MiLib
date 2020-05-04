@@ -37,8 +37,6 @@ typedef struct past_c_buf {
 	unsigned int	len;
 } past_c_buf;
 
-// __device__ unsigned int	d_wds [1]	= {0};	// number of  words
-
 static __global__ void K_histo_stream_to_words (unsigned char *d_buf, unsigned int *d_loc, ssize_t read, unsigned int *wd_idx);
 
 // We assume that we will not go out of memory.  Check for mem availability here and plan recovery from OOM situation.
@@ -131,10 +129,10 @@ unsigned int cuda_stream_to_wd_to_token (ssize_t read, all_bufs *ab)
 
 		// we don't HAVE to over here but for Integrity's sake...
 		gpuErrChk (cudaMemcpy (&tmp_hist -> h_num_free, tmp_hist -> d_num_free, sizeof (unsigned int), cudaMemcpyDeviceToHost));
+		// Dbg ("tmp_hist %p: next %p num_free %u", tmp_hist, tmp_hist -> next, tmp_hist -> h_num_free);
 	}
 
 	Dbg ("read:%u, words:%u str %.1000s...", (unsigned) read, new_wds, ab -> st_info.h_read_buf);
-
 	return new_wds;
 }
 
@@ -253,7 +251,7 @@ void cuda_free_everything (all_bufs *ab)
 	reset_all_tt (ab);	// free every h_ttrack
 
 	// no CUDA_FREE done as all mem destroyed by cudaDeviceReset
-	gpuErrChk (cudaDeviceReset ());		// reset device
+	// gpuErrChk (cudaDeviceReset ());		// reset device
 }
 
 /****************  Histogram Functions  ********************/
@@ -275,7 +273,7 @@ static __global__ void K_histo_stream_to_words (unsigned char *d_buf, unsigned i
 	if (is_ch && !is_prev_ch) {	// beginning of word
 		unsigned int old_wd = atomicAdd ((unsigned int *) wd_idx, (unsigned int) 1);
 		d_loc [old_wd] = gTh;		// loc of start of next word
-		CudaDbgPrn ("th (& loc): %u old_wd (wd no) %u: wd %.20s", (unsigned) gTh, (unsigned) old_wd, &d_buf [gTh]);
+		// CudaDbgPrn ("th (& loc): %u old_wd (wd no) %u: wd %.20s", (unsigned) gTh, (unsigned) old_wd, &d_buf [gTh]);
 	}
 }
 

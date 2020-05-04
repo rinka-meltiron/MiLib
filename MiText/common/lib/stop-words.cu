@@ -68,6 +68,11 @@ static void cuda_create_stop_word_lst (all_bufs *ab, unsigned int *d_wds)
 	Dbg ("After reset_all_tt"); print_stop_words (&ab -> def_gpu_calc, ab -> d_sw_list, ab -> d_sw_nos);
 }
 
+/****
+ * Assumption: We can read all the stop words in one shot.  We don't need
+ * to implement the huge complex cuda_read_buffer_into_gpu and it's related
+ * functions.
+ ****/
 static ssize_t cuda_stop_word_read_buffer_into_gpu (all_bufs *ab, FILE *f);
 static ssize_t cuda_stop_word_read_buffer_into_gpu (all_bufs *ab, FILE *f)
 {
@@ -110,12 +115,10 @@ void create_stop_word (all_bufs *ab, FILE *fl)
 	Dbg ("======== done ========");
 }
 
-// TBD - Alt 1: chop stop words down to just the words in the chunk before applying.
-// TBD - Alt 2: store stop words in texture memory
-// TBD - Alt 3: mv stop words to shmem & then apply from there
-static __global__ void K_Histo_apply_stop_words (token **tok, const mhash_vals *stp_wds, const unsigned int *swd_nos, unsigned int *num_free, const unsigned int c_size);
-
 // RS_DEBUG - performance IS pathetic - to relook in future.
+// TBD - Alt 1: store stop words in texture memory
+// TBD - Alt 2: mv stop words to shmem & then apply from there
+static __global__ void K_Histo_apply_stop_words (token **tok, const mhash_vals *stp_wds, const unsigned int *swd_nos, unsigned int *num_free, const unsigned int c_size);
 static __global__ void K_Histo_apply_stop_words (token **tok, const mhash_vals *stp_wds, const unsigned int *swd_nos, unsigned int *num_free, const unsigned int c_size)
 {
 	extern __shared__ tok_mhash chunk [];		// shmem of d_data
