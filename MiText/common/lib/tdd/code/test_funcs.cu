@@ -14,8 +14,6 @@ extern token_tracking *create_token_tracking (const unsigned int c_size);
 extern void __global__ K_get_d_data_out (token *out, token **d_data, const size_t c_size);
 extern void update_h_ttrack (gpu_calc *gb, token_tracking *h_ttrack);
 
-extern __device__ volatile unsigned int	d_Srt [];	// high level sort
-
 /******* Functions exported ************/
 void print_token_from_device (gpu_calc *gb, token_tracking *tt);
 void print_stop_words (gpu_calc *gb, mhash_vals *d_list, unsigned int *d_nos);
@@ -38,10 +36,10 @@ static void __global__ K_Print_tok (const unsigned int c_size, token **tok, unsi
 	if (gTh >= (unsigned int) c_size) return;
 
 	if (tok [gTh]) {
-		CudaDbgPrn ("gTh%u num:%u str %s hash%u free%u\n d_Srt %u", gTh, (unsigned) tok [gTh] -> wd.num, tok [gTh] -> wd.str, (unsigned) tok [gTh] -> mhv.mhash, *num_free, (unsigned) *d_Srt);
+		CudaDbgPrn ("gTh%u num:%u str %s hash%u free%u\n", gTh, (unsigned) tok [gTh] -> wd.num, tok [gTh] -> wd.str, (unsigned) tok [gTh] -> mhv.mhash, *num_free);
 	}
 	else {
-		CudaDbgPrn ("gTh%u tok:NULL free%u\n d_Srt %u", gTh, *num_free, (unsigned) *d_Srt);
+		CudaDbgPrn ("gTh%u tok:NULL free%u", gTh, *num_free);
 	}
 }
 

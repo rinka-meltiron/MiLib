@@ -74,11 +74,12 @@ the various alternative parameters are.  These have yet to be implemented
 ```
 where:<br>
 ```
--s parameter to pass in a stop_words_file file.
+-s or --stop_words parameter to pass in a stop_words_file file.
 stop_words_file is a list of stop-words in text format (we assume there are no duplicates).
--o output.file writes the output to a file.  If -o is specified without a filename, then the output is written to stdout<br>
--D daemonizes the histogram. You can then use histogram to pass it further files and commands
--c wipes out and creates a new index.  The previous histogram (if it exists because of the -D parameter) is wiped out and a new index is created with the files passed
+-o --output writes the output to a file.  If -o is specified without a filename, then the output is written to stdout<br>
+-D --daemonize runs the histogram as a daemon. You can then pass it further files and commands or make API Calls (TBD)
+-c --clean wipes out the previous histogram.  The previous histogram (if it exists because of the -D parameter) is wiped out and a new index is created with the files passed
+-q --quit cleans up and kills the histogram daemon
 file.txt, f1.txt, f2.txt, f3.txt etc. are text files.
 ```
 

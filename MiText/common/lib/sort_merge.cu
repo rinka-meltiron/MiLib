@@ -18,7 +18,6 @@ extern void apply_stop_words (token_tracking *hs, all_bufs *ab);
 extern void set_to_zero (unsigned int *d_val);
 extern unsigned int get_d_val (unsigned int *d_val);
 
-
 extern bool __device__ __host__ isGreater (const mhash_vals *curr, const mhash_vals *next);
 extern bool __device__ __host__ isEqual (const mhash_vals *curr, const mhash_vals *next);
 extern __device__ void cuda_swap_mem (tok_mhash *d_mem1, tok_mhash *d_mem2);
@@ -28,7 +27,9 @@ extern void print_token_tracking (gpu_calc *gb, token_tracking *hst);
 extern void print_token_from_device (gpu_calc *gb, token_tracking *tt);
 extern void print_scratchpad_and_chunks (gpu_calc *gb, token_tracking *scr, token_tracking *src);
 
-/*************  structures local to this file **************/
+/************* local structures, const, enum **************/
+typedef enum {SWAP, MERGE, MOVE, NONE}						action;
+typedef enum {FORWARD, BACK, INSERT_BEFORE, INSERT_AFTER}	direction;
 #define TRUE			1
 #define FALSE			0
 
@@ -47,14 +48,15 @@ typedef struct MY_ALIGN (16) data_sort_otc {
 
 	volatile unsigned int	*d_is_K_Sorted;		// K_Sort_Merge
 	volatile unsigned int	*d_is_core_sorted;	// K_core_sort
+	volatile unsigned int	*d_Srt;	// high level sort
 } data_sort_otc;
-
-__device__ volatile unsigned int	d_Srt [1] = {FALSE};	// high level sort
 
 /*************  functions  **************/
 static unsigned int get_sort_status (volatile unsigned int *d_Srtd);
 static unsigned int get_sort_status (volatile unsigned int *d_Srtd)
 {
+	assert (d_Srtd);
+
 	unsigned int h_srt = FALSE;
 	gpuErrChk (cudaMemcpy (&h_srt, (void *) d_Srtd, sizeof (unsigned int), cudaMemcpyDeviceToHost));
 
@@ -64,6 +66,8 @@ static unsigned int get_sort_status (volatile unsigned int *d_Srtd)
 static void set_sort_true (volatile unsigned int *d_Srtd);
 static void set_sort_true (volatile unsigned int *d_Srtd)
 {
+	assert (d_Srtd);
+
 	unsigned int h_srt = TRUE;
 	gpuErrChk (cudaMemcpy ((void *) d_Srtd, &h_srt, sizeof (unsigned int), cudaMemcpyHostToDevice));
 }
@@ -71,8 +75,24 @@ static void set_sort_true (volatile unsigned int *d_Srtd)
 static void set_sort_false (volatile unsigned int *d_Srtd);
 static void set_sort_false (volatile unsigned int *d_Srtd)
 {
+	assert (d_Srtd);
+
 	unsigned int h_srt = FALSE;
 	gpuErrChk (cudaMemcpy ((void *) d_Srtd, &h_srt, sizeof (unsigned int), cudaMemcpyHostToDevice));
+}
+
+static token_tracking *find_first_tt_head_with_data (token_tracking *head);
+static token_tracking *find_first_tt_head_with_data (token_tracking *head)
+{
+	if (!head -> prev && !head -> next) return head;
+
+	while (head -> prev) head = head -> prev;
+	while (head -> next) {
+		if (head -> chunk_size == head -> h_num_free) head = head -> next;
+		else break;
+	}
+
+	return head;
 }
 
 /*************  start main sort Functions  **************/
@@ -80,7 +100,6 @@ static void set_sort_false (volatile unsigned int *d_Srtd)
  * ct Assumption: ALL of curr [th] - *tok is on ct.
  * zero out curr *tok no problem. zeroing out *tok contents could have issue
  * DON'T zero *tok contents EXCEPT in MERGE.
- * TBD: RS_DEBUG
  * The three alternatives are:
  * 1. chunk_size = 1/8th of maxThreads & scratchpad = maxThreads
  * 2. chunk_size = half of maxThreads & scratchpad = maxThreads * 4
@@ -111,7 +130,7 @@ static void __global__ K_Sort_Merge (token **curr, unsigned int *curr_num_free, 
 		for (unsigned int chunk = 0; chunk < k_sotc -> n_chunks; chunk++) {
 			unsigned int  blk_loc = 0;
 
-#pragma unroll
+#pragma unroll	2
 			for (unsigned int isHalf = 0; isHalf < 2; isHalf++) {	// half chunk
 				if (true == willSort (isHalf, chunk, k_sotc -> n_chunks)) {
 					cuda_MemSet (&ct [gTh], (uint8_t) 0x00, (uint32_t) (sizeof (tok_mhash)));
@@ -122,8 +141,6 @@ static void __global__ K_Sort_Merge (token **curr, unsigned int *curr_num_free, 
 						ct [gTh].tok = (token *) curr [blk_loc];
 						cuda_MemCpy (&ct [gTh].mhv, &curr [blk_loc] -> mhv, sizeof (mhash_vals));
 					}
-					atomicExch ((unsigned int *) k_sotc -> d_is_core_sorted, (unsigned int) FALSE);	// set FALSE before shmem sort
-					__syncthreads ();
 					/***
 					if (ct [gTh].mhv.mhash) {
 							CudaDbgPrn ("Before K_core_sort :gTh:%u free:%u n_chunks:%u is_stop_word %u|curr[gTh:%u] %p ct[gTh:%u]: tok %p; mhash %u %.2s", (unsigned) gTh, (unsigned) *curr_num_free, (unsigned) k_sotc -> n_chunks, (unsigned) k_sotc -> is_stop_word, curr [gTh], (unsigned) gTh, ct [gTh].tok, (unsigned) ct [gTh].tok -> mhv.mhash, ct [gTh].tok -> mhv.str);
@@ -181,6 +198,9 @@ static void __device__ K_core_sort (tok_mhash *ct, const unsigned int gTh, const
 	register unsigned int curr_loc, next_loc;
 	// CudaDbgPrn ("shmem %u free %u is_stop_word %u|ct[%u]: mhash %u %.2s", (unsigned) shmem, (unsigned) *curr_num_free, (unsigned) is_stop_word, (unsigned) gTh, (unsigned) ct [gTh].mhv.mhash, ct [gTh].mhv.str);
 
+	atomicExch ((unsigned int *) k_sotc -> d_is_core_sorted, (unsigned int) FALSE);	// set FALSE before shmem sort
+	__syncthreads ();
+
 	while ((unsigned int) FALSE == *k_sotc -> d_is_core_sorted) {
 		atomicExch ((unsigned int *) k_sotc -> d_is_core_sorted, (unsigned int) TRUE);
 
@@ -204,7 +224,7 @@ static void __device__ K_core_sort (tok_mhash *ct, const unsigned int gTh, const
 				if (NONE != act && !(k_sotc -> is_stop_word && MERGE == act)) {
 					*k_sotc -> d_is_core_sorted = (unsigned int) FALSE;
 					*k_sotc -> d_is_K_Sorted = (unsigned int) FALSE;
-					*d_Srt = (unsigned int) FALSE;
+					*k_sotc -> d_Srt = (unsigned int) FALSE;
 					__threadfence ();
 
 					if (MOVE == act) {
@@ -304,7 +324,6 @@ static unsigned int sort_one_token_block (gpu_calc *gb, token_tracking *tt, data
 		gpuErrChk (cudaMalloc (&d_first_hash, sizeof (uint32_t)));
 	}
 
-	gpuErrChk (cudaMemcpy (&(tt -> h_num_free), tt -> d_num_free, sizeof (unsigned int), cudaMemcpyDeviceToHost));
 	dim3 block = gb -> block;
 	dim3 grid ((tt -> chunk_size + block.x - 1) / block.x);
 	data_sort_otc h_sotc;
@@ -320,6 +339,7 @@ static unsigned int sort_one_token_block (gpu_calc *gb, token_tracking *tt, data
 		tt -> first_hash = 0;
 	}
 	CUDA_GLOBAL_CHECK;
+	gpuErrChk (cudaMemcpy (&(tt -> h_num_free), tt -> d_num_free, sizeof (unsigned int), cudaMemcpyDeviceToHost));
 
 	return tt -> h_num_free;
 }
@@ -371,7 +391,7 @@ static void __global__ K_Sort_across_half_block (token **block, const data_sort_
 		atomicAdd (num_free, (unsigned int) 1);
 		// CudaDbgPrn ("th:%u: c:%u/n:%u Merged", (unsigned) gTh, (unsigned) c_th, (unsigned) n_th);
 	}
-	atomicExch ((unsigned int *) d_Srt, (unsigned int) FALSE);
+	atomicExch ((unsigned int *) d_sotc -> d_Srt, (unsigned int) FALSE);
 
 	/***
 	CudaDbgPrn ("gTh %u act %s, c.mhash %u", gTh, (0 == act)?"SWAP":((1 == act)?"MERGE":"NONE"), (unsigned) curr_tok.mhv.mhash);
@@ -472,7 +492,6 @@ static void milib_sort_across_block (gpu_calc *gb, token_tracking *tt, data_sort
 }
 
 /*************  end main sort Functions  **************/
-
 static bool sort_merge_histo_cross (all_bufs *ab, token_tracking **curr, data_sort_otc *d_sotc);
 static token_tracking *sort_token_chunks (token_tracking *h_ttrack);
 
@@ -484,25 +503,29 @@ void milib_gpu_sort_merge_histo_wds (all_bufs *ab, bool is_stop_words)
 		gpuErrChk (cudaMemcpy (&wds, ab -> d_wds, sizeof (unsigned int), cudaMemcpyDeviceToHost));
 	}
 
-	static unsigned int *loc_d_is_K_Sorted = NULL,
-					*loc_d_is_core_sorted = NULL;
+	static unsigned int *loc_d_is_K_Sorted = NULL, *loc_d_is_core_sorted = NULL;
+	static unsigned int *loc_d_Srt = NULL;
 	if (!loc_d_is_K_Sorted) {gpuErrChk (cudaMalloc (&loc_d_is_K_Sorted, sizeof (unsigned int)));}
 	if (!loc_d_is_core_sorted) {gpuErrChk (cudaMalloc (&loc_d_is_core_sorted, sizeof (unsigned int)));}
+	if (!loc_d_Srt) {gpuErrChk (cudaMalloc (&loc_d_Srt, sizeof (unsigned int)));}
 
 	data_sort_otc hd_sotc;
-	hd_sotc.n_chunks = 1;		// default is ALWAYS one chunk
-	hd_sotc.n_warps = ab -> def_gpu_calc.block_size / ab -> def_gpu_calc.warp_size;
-	hd_sotc.is_stop_word = is_stop_words;
-
-	hd_sotc.d_is_K_Sorted = loc_d_is_K_Sorted;
-	hd_sotc.d_is_core_sorted = loc_d_is_core_sorted;
-
 	static data_sort_otc *d_sotc = NULL;
-	if (!d_sotc) {gpuErrChk (cudaMalloc (&d_sotc, sizeof (data_sort_otc)));}
-	gpuErrChk (cudaMemcpy (d_sotc, &hd_sotc, sizeof (data_sort_otc), cudaMemcpyHostToDevice));	// sotc is now in GPU
+	{
+		hd_sotc.n_chunks = 1;		// default is ALWAYS one chunk
+		hd_sotc.n_warps = ab -> def_gpu_calc.block_size / ab -> def_gpu_calc.warp_size;
+		hd_sotc.is_stop_word = is_stop_words;
+
+		hd_sotc.d_is_K_Sorted = loc_d_is_K_Sorted;
+		hd_sotc.d_is_core_sorted = loc_d_is_core_sorted;
+		hd_sotc.d_Srt = loc_d_Srt;
+
+		if (!d_sotc) {gpuErrChk (cudaMalloc (&d_sotc, sizeof (data_sort_otc)));}
+		gpuErrChk (cudaMemcpy (d_sotc, &hd_sotc, sizeof (data_sort_otc), cudaMemcpyHostToDevice));	// sotc is now in GPU
+	}
 
 	token_tracking *tmp;
-	for (tmp = ab -> h_ttrack; tmp; tmp = tmp -> next) {
+	for (tmp = ab -> h_tcurr; tmp; tmp = tmp -> next) {
 		// apply stop_words only when called from main, not while processing
 		// stop_words itself
 		if (ab -> IsS_wd && !is_stop_words) {
@@ -510,52 +533,68 @@ void milib_gpu_sort_merge_histo_wds (all_bufs *ab, bool is_stop_words)
 			// Dbg ("------ after apply_stop_words: ");
 		}
 
-		tmp -> h_num_free = sort_one_token_block (&ab -> def_gpu_calc, tmp, d_sotc);	// stop_words:no merge
+		// Dbg ("========= before one sort =========\n"); print_token_tracking (&(ab -> def_gpu_calc), tmp);
+		tmp -> h_num_free = sort_one_token_block (&ab -> def_gpu_calc, tmp, d_sotc);	// stop_words: no merge
+		// Dbg ("========= one sort done =========\n"); print_token_tracking (&(ab -> def_gpu_calc), tmp);
 
 		if (!is_stop_words) {
 			update_h_ttrack (&ab -> def_gpu_calc, tmp);
 		}
 	}
 
+	// append h_tcurr to h_ttrack
+	while (ab -> h_tcurr -> prev) ab -> h_tcurr = ab -> h_tcurr -> prev;
+	tmp = ab -> h_ttrack;
+	if (!tmp) {
+		tmp = ab -> h_ttrack = ab -> h_tcurr;
+	}
+	else {
+		for (tmp = ab -> h_ttrack; tmp -> next; tmp = tmp -> next);
+		tmp -> next = ab -> h_tcurr;
+		ab -> h_tcurr -> prev = tmp;
+	}
+	ab -> h_tcurr = NULL;
+	for (; tmp -> prev; tmp = tmp -> prev);
+	ab -> h_ttrack = tmp;					// set h_ttrack
+
 	/***
 	Dbg ("\n\n------ printing histo BEFORE sort_merge cross -------");
-	token_tracking *tst = ab -> h_ttrack;	// RS_DEBUG
+	token_tracking *tst = ab -> h_tcurr;
 	while (tst && tst -> prev) tst = tst -> prev;
 	for (; tst; tst = tst -> next) PRINT_HISTO (&ab -> def_gpu_calc, tst);
 	***/
 
 	set_sort_false (hd_sotc.d_is_K_Sorted);
-	bool toCompact = false;	// shall we run memory_compaction?
 	while (false == get_sort_status (hd_sotc.d_is_K_Sorted)) {
 		set_sort_true (hd_sotc.d_is_K_Sorted);	// sorting across multiple funcs.
+		while (tmp -> prev) tmp = tmp -> prev;
 
 		tmp = sort_token_chunks (ab -> h_ttrack);
-		while (ab -> h_ttrack -> prev) ab -> h_ttrack = ab -> h_ttrack -> prev;
-		if (!tmp) tmp = ab -> h_ttrack;
+		tmp = find_first_tt_head_with_data (ab -> h_ttrack);
 		sort_merge_histo_cross (ab, &tmp, d_sotc);
 
-		toCompact = false;
-		if (tmp -> chunk_size == tmp -> h_num_free) toCompact = true;
-
-		/***
-		Dbg ("\n\n------ printing histo BEFORE memory_compaction -------");
-		tst = ab -> h_ttrack;	// RS_DEBUG
-		while (tst && tst -> prev) tst = tst -> prev;
-		for (; tst; tst = tst -> next) PRINT_HISTO (&ab -> def_gpu_calc, tst);
-		***/
-
-		if (toCompact && false == is_stop_words) {
-			memory_compaction (ab);
-			toCompact = false;
-		}
-
-		/***
-		Dbg ("\n\n------ printing histo AFTER memory_compaction -------");
-		tst = ab -> h_ttrack;	// RS_DEBUG
-		while (tst && tst -> prev) tst = tst -> prev;
-		for (; tst; tst = tst -> next) PRINT_HISTO (&ab -> def_gpu_calc, tst);
-		***/
 	}
+
+	while (tmp -> prev) tmp = tmp -> prev;		// go to beginning
+	ab -> h_ttrack = tmp;
+
+	// token_tracking *tst;
+	/***
+	tst = ab -> h_ttrack;
+	while (tst && tst -> prev) tst = tst -> prev;
+	Dbg ("\n\n------ printing histo AFTER sort_merge_histo_cross -------");
+	for (; tst; tst = tst -> next) PRINT_HISTO (&ab -> def_gpu_calc, tst);
+	***/
+
+	if ((tmp -> chunk_size == tmp -> h_num_free) && false == is_stop_words) {
+		memory_compaction (ab);
+	}
+	/***
+	Dbg ("\n\n------ printing histo AFTER memory_compaction -------");
+	tst = ab -> h_ttrack;
+	while (tst && tst -> prev) tst = tst -> prev;
+	for (; tst; tst = tst -> next) PRINT_HISTO (&ab -> def_gpu_calc, tst);
+	***/
 }
 
 /************* start sort_merge_histo_cross functions ***************/
@@ -566,6 +605,7 @@ static void mv_one_chunk_left (token_tracking *scratchpad, const size_t chunks, 
 static void mv_one_chunk_left (token_tracking *scratchpad, const size_t chunks, const size_t chunk_size)
 {
 	gpuErrChk (cudaMemcpy (scratchpad -> d_data, scratchpad -> d_data + chunk_size, sizeof (token **) * chunk_size * (chunks - 1), cudaMemcpyDeviceToDevice));
+	gpuErrChk (cudaMemset (scratchpad -> d_data + (chunks - 1) * chunk_size, 0x00, sizeof (token **) * chunk_size));
 
 	scratchpad -> h_num_free += chunk_size;
 
@@ -573,79 +613,168 @@ static void mv_one_chunk_left (token_tracking *scratchpad, const size_t chunks, 
 }
 
 /*********** start sort_token_chunks functions *****************/
-static token_tracking *find_first_tt_head_with_data (token_tracking *head);
-static token_tracking *swap_token_chunk (token_tracking *curr, token_tracking *next);
+static void insert_here (token_tracking *tgt, token_tracking *src, direction loc);
+static void insert_here (token_tracking *tgt, token_tracking *src, direction loc)
+{
+	token_tracking *tmp;
+
+	switch (loc) {
+		case INSERT_AFTER:
+		case FORWARD:
+			tmp = tgt -> next;
+			if (tmp) {
+				tmp -> prev = src;
+				src -> next = tmp;
+			}
+			else src -> next = NULL;
+
+			tgt -> next = src;
+			src -> prev = tgt;
+			break;
+
+		case INSERT_BEFORE:
+		case BACK:
+			tmp = tgt -> prev;
+			if (tmp) {
+				tmp -> next = src;
+				src -> prev = tmp;
+			}
+			else {
+				src -> prev = NULL;
+			}
+
+			tgt -> prev = src;
+			src -> next = tgt;
+			break;
+
+		default:
+			Dbg ("Error");
+			exit (1);
+			break;
+	}
+}
+
+static direction mv_towards (token_tracking *src, token_tracking *tgt);
+static direction mv_towards (token_tracking *src, token_tracking *tgt)
+{
+	if (!tgt -> first_hash) {
+		if (src -> h_num_free >= tgt -> h_num_free) {
+			if (!tgt -> prev) return INSERT_BEFORE;
+			else return BACK;
+		}
+		else if (src -> h_num_free < tgt -> h_num_free) {
+			if (!tgt -> next) return INSERT_AFTER;
+			else return FORWARD;
+		}
+		return INSERT_AFTER;
+	}
+	else if (src -> first_hash > tgt -> first_hash) {
+		Dbg ("src_first_hash %u > tgt_first_hash %u", src -> first_hash, tgt -> first_hash);
+		if (!tgt -> next) return INSERT_AFTER;
+		else return FORWARD;
+	}
+	else if (src -> first_hash < tgt -> first_hash) {
+		Dbg ("src_first_hash %u < tgt_first_hash %u", src -> first_hash, tgt -> first_hash);
+		if (!tgt -> prev) return INSERT_BEFORE;
+		else return BACK;
+	}
+
+	Dbg ("INSERT_AFTER: src_first_hash %u, tgt_first_hash %u", src -> first_hash, tgt -> first_hash);
+	return INSERT_AFTER;
+}
+
+static token_tracking *get_next_src (token_tracking *src);
+static token_tracking *get_next_src (token_tracking *src)
+{
+	static token_tracking *to_store = NULL;
+	static bool start = true;
+	if (true == start) {	// jumping through the hoops because
+		to_store = src;		//  couldn't initialize to_store directly
+		start = false;
+	}
+	token_tracking *to_ret = to_store;
+	if (to_store) to_store = to_store -> next;
+	else return NULL;
+
+	if (to_ret) to_ret -> prev = to_ret -> next = NULL;
+	return to_ret;
+}
+
+/***
+ * do the sort here - from src to tgt - return tgt
+ *
+ * Decision Table:
+ * T: tgt, S: Src, TN tgt->next, TP tgt ->prev
+ * S>T && S>TN FORWARD       S>T && !TN INSERT_AFTER
+ *
+ * S<T && S<TP BACK          S<T && !TP INSERT_BEFORE
+ *
+ * S>T && S=TN INSERT_AFTER          S>T && S<TN INSERT_AFTER
+ * S=T && S=TN INSERT_AFTER          S=T && S<TN INSERT_AFTER
+ * S=T && S=TP INSERT_AFTER          S=T && S>TP INSERT_AFTER
+ * S<T && S=TN INSERT_AFTER
+ ***/
 
 static token_tracking *sort_token_chunks (token_tracking *h_ttrack)
 {
 	if (!h_ttrack -> prev && !h_ttrack -> next) return h_ttrack;	// don't sort
 
-	bool isSorted = false;
-	// Assumption: since not many chunks, simple swap sorts list
-	while (false == isSorted) {
-		isSorted = true;
-		token_tracking *tmp, *nxt = h_ttrack -> next;
-		for (tmp = find_first_tt_head_with_data (h_ttrack); tmp && nxt;
-			 tmp = tmp -> next) {
-			nxt = tmp -> next;
-			if (nxt) {
-				if (!tmp -> first_hash) {
-					if (tmp -> h_num_free < nxt -> h_num_free) {
-						tmp = swap_token_chunk (tmp, nxt);
-						isSorted = false;	// sorting within this func
-					}
-				}
-				else {
-					if (tmp -> first_hash > nxt -> first_hash) {
-						tmp = swap_token_chunk (tmp, nxt);
-						isSorted = false;	// sorting within this func
-					}
-				}
-			}
+	token_tracking *tgt = get_next_src (h_ttrack), *src;
+	while (NULL != (src = get_next_src (h_ttrack))) {
+		direction dir, prev_dir = INSERT_AFTER;
 
-			h_ttrack = find_first_tt_head_with_data (h_ttrack);
-		 }
+		bool insert = false;
+		while (false == insert) {
+			dir = mv_towards (src, tgt);
+			switch (dir) {
+				case FORWARD:
+					if (BACK == prev_dir) {
+						// Dbg ("INSERT_AFTER");
+						prev_dir = INSERT_AFTER;
+						insert_here (tgt, src, dir);
+						insert = true;
+					}
+					else {
+						// Dbg ("FORWARD");
+						tgt = tgt -> next;
+						prev_dir = FORWARD;
+					}
+					break;
+
+				case BACK:
+					if (FORWARD == prev_dir) {
+						// Dbg ("INSERT_BEFORE");
+						prev_dir = INSERT_BEFORE;
+						insert_here (tgt, src, dir);
+						insert = true;
+					}
+					else {
+						// Dbg ("BACK");
+						tgt = tgt -> prev;
+						prev_dir = BACK;
+					}
+					break;
+
+				case INSERT_BEFORE:
+					// Dbg ("INSERT_BEFORE");
+				case INSERT_AFTER:
+					// Dbg ("INSERT_AFTER");
+					insert_here (tgt, src, dir);
+					insert = true;
+					break;
+
+				default:
+					Dbg ("Error\n");
+					exit (1);
+			}
+		}
 	}
 
+	h_ttrack = find_first_tt_head_with_data (h_ttrack);
 	// while (h_ttrack -> prev) h_ttrack = h_ttrack -> prev; for testing
 	return h_ttrack;			// only tokens with contents
 }
 
-// These are the index values for links
-#define PREV						0
-#define CURR						1
-#define NEXT						2
-#define FUTR						3
-static token_tracking *swap_token_chunk (token_tracking *curr, token_tracking *next)
-{
-	token_tracking *links [4];		// all the links for swapping
-
-	links [PREV] = curr -> prev;	// previous
-	links [CURR] = curr;			// current
-	links [NEXT] = next;			// next
-	links [FUTR] = next -> next;	// future
-
-	links [CURR] -> prev = links [NEXT];
-	links [CURR] -> next = links [FUTR];
-	links [NEXT] -> prev = links [PREV];
-	links [NEXT] -> next = links [CURR];
-	if (links [PREV]) links [PREV] -> next = links [NEXT];
-	if (links [FUTR]) links [FUTR] -> prev = links [CURR];
-
-	return next;
-}
-
-static token_tracking *find_first_tt_head_with_data (token_tracking *head)
-{
-	while (head -> prev) head = head -> prev;
-
-	while (head) {
-		if (head -> chunk_size == head -> h_num_free) head = head -> next;
-		else break;
-	}
-
-	return head;
-}
 /*********** end sort_token_chunks functions *****************/
 
 /************* start src_to_scratchpad functions ***************/
@@ -725,12 +854,22 @@ static void copy_scratchpad_to_multi_tgt (gpu_calc *gb, token_tracking *tgt, tok
 /************* scratchpad_to_tgt functions ***************/
 
 /*************** implementation ***************
- * cp src to scr
- * while (src) cp src -> scr
- * 		sort scr, cp scr -> tgt
- * 		shift scr left -repeat till src emptied
+ * Underliying definition:
+ * ** Moves all the zeros up front.
+ * ** sorts across chunks.  As a result the data stored in *d_data
+ *		(essentially *d_tok_start) can/will be distributed ACROSS
+ * 		chunks
+ * ** DOES NOT align data to within chunks (as when the chunks are
+ * 		created)
+ * ** This realignment will be done in memory_compaction
+ * cp src to scratchpad
+ * while not sorted
+ * 	while (src) cp src -> scr
+ * 		sort scr
+ * 		shift scr left & cp scr -> tgt - repeat till src emptied
+ * 	end_while
+ * 	cp balance scr -> tgt
  * end_while
- * cp balance scr -> tgt
  *************** h_num_free ***************
  * start: scr -> mark as empty
  * copy_src_to_scratchpad:
@@ -743,17 +882,18 @@ static void copy_scratchpad_to_multi_tgt (gpu_calc *gb, token_tracking *tgt, tok
  * mv_one_chunk_left:
  * 		increase scr->free by tgt->size;
  ***/
-
+// TODO: RS_DEBUG - enhance to cover a much larger scratchpad
+static unsigned int calculate_max_scratchpad_size (all_bufs *ab);
 static bool sort_merge_histo_cross (all_bufs *ab, token_tracking **curr , data_sort_otc *d_sotc)
 {
 	if (!(*curr) -> prev && !(*curr) -> next) return true;
-	static unsigned int		max_scr_chunks = 8;	// 8 chunks max
+	static const unsigned int max_scr_chunks = calculate_max_scratchpad_size (ab);
 	static token_tracking *scratchpad = create_token_tracking (&ab -> gc, max_scr_chunks * ab -> def_gpu_calc.block_size);
 
 	data_sort_otc hd_sotc;
 	gpuErrChk (cudaMemcpy (&hd_sotc, d_sotc, sizeof (data_sort_otc), cudaMemcpyDeviceToHost));	// data now in cpu
 	unsigned int tot_chunks = 0;
-	token_tracking *src = ab -> h_ttrack;
+	token_tracking *src = *curr;
 	for (token_tracking *tmp = src; tmp; tmp = tmp -> next) tot_chunks++;
 	gpu_calc gb;
 	memcpy (&gb, &ab -> def_gpu_calc, sizeof (gpu_calc));
@@ -763,9 +903,11 @@ static bool sort_merge_histo_cross (all_bufs *ab, token_tracking **curr , data_s
 	hd_sotc.n_warps = tot_chunks * ab -> def_gpu_calc.block_size / gb.warp_size;
 	gpuErrChk (cudaMemcpy (d_sotc, &hd_sotc, sizeof (data_sort_otc), cudaMemcpyHostToDevice));	// data now in GPU
 
-	for (src = ab -> h_ttrack; src && (src -> chunk_size == src -> h_num_free); src = src -> next);			// if empty, next
-	if (!src || !ab -> h_ttrack -> next) {	// all empty or only one chunk
-		set_sort_true (d_Srt);
+	for (src = *curr; src && (src -> chunk_size == src -> h_num_free); src = src -> next);			// if empty, next
+	if (!src || !src -> next) {	// all empty or only one chunk
+		data_sort_otc hd_sotc;
+		gpuErrChk (cudaMemcpy (&hd_sotc, d_sotc, sizeof (data_sort_otc), cudaMemcpyDeviceToHost));
+		set_sort_true (hd_sotc.d_Srt);
 		return true;
 	}
 
@@ -802,12 +944,19 @@ static bool sort_merge_histo_cross (all_bufs *ab, token_tracking **curr , data_s
 
 	/***
 	Dbg ("\n\n------ after copy_scratchpad_to_multi_tgt -------");
-	token_tracking *tst = ab -> h_ttrack;	// RS_DEBUG
+	token_tracking *tst = ab -> h_ttrack;
 	while (tst && tst -> prev) tst = tst -> prev;
 	for (; tst; tst = tst -> next) print_token_from_device (&gb, tst);
 	for (; tst; tst = tst -> next) PRINT_HISTO (&gb, tst);
 	***/
 
 	return isEmptyToken;		// based on this we will compress out empty tokens
+}
+
+static unsigned int calculate_max_scratchpad_size (all_bufs *ab)
+{
+	unsigned int default_size = ab -> gc.n_threads / ab -> def_gpu_calc.block_size;
+
+	return default_size;
 }
 /************* end sort_merge_histo_cross functions ***************/

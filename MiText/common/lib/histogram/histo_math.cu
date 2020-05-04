@@ -177,7 +177,7 @@ static void histo_math_cp_sort_Dlist (all_bufs *ab, math_results *hm)
 
 	/***
 	Dbg ("=== %u odd/even pass done ===", i++);
-	for (i = 0; i < hm -> list_len; i++) {	// RS_DEBUG
+	for (i = 0; i < hm -> list_len; i++) {
 		Dbg ("%u:%.20s len %u num %u ", i, hm -> h_num_list [i].str, hm -> h_num_list [i].len, hm -> h_num_list [i].num);
 	}
 	***/
